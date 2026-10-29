@@ -2,6 +2,10 @@
 const LETTERS = 'ABCDEFGH';
 const LEVEL_COUNT = 80;
 
+// Highest acceptable reading grade (Flesch-Kincaid) per letter. There is headroom because the formula
+// over-scores names and topic words; G and H get more since nonfiction at that level scores high.
+const BAND_MAX_GRADE = [3, 3.5, 4, 5, 6, 7, 10, 12];
+
 const BANDS = [
   { grade: 'Pre-K / Kindergarten', vocab: 'only short decodable words (cat, sun, big, hop, red) and the easiest sight words (I, a, the, is, see, can, my). No word longer than 5 letters except a name.', skills: 'simple who/what recall' },
   { grade: 'Kindergarten / 1st grade', vocab: 'short-vowel words, blends and digraphs (frog, stop, ship, chick), common sight words, a few easy two-syllable words', skills: 'recall and what happened first/next' },

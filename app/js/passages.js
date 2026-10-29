@@ -183,6 +183,19 @@ const STOPWORDS = new Set(('a an the and or but so of to in on at for with from 
   'have has had can could will would should just very too also all some any each into out up down over about after before ' +
   'when what who where why how which said one two').split(' '));
 
+// Flesch-Kincaid grade level, with a simple syllable count.
+function syllables(w) {
+  w = w.toLowerCase().replace(/[^a-z]/g, '');
+  if (w.length <= 3) return 1;
+  w = w.replace(/(?:[^laeiouy]es|ed|[^laeiouy]e)$/, '').replace(/^y/, '');
+  return Math.max(1, (w.match(/[aeiouy]{1,2}/g) || []).length);
+}
+function readingGrade(text) {
+  const ws = words(text), sentences = Math.max(1, (String(text).match(/[.!?]+/g) || []).length);
+  if (!ws.length) return 0;
+  return 0.39 * ws.length / sentences + 11.8 * ws.reduce((t, w) => t + syllables(w), 0) / ws.length - 15.59;
+}
+
 function norm(w) { return String(w).toLowerCase().replace(/[^a-z0-9]/g, ''); }
 function words(s) { return String(s).split(/\s+/).filter(Boolean); }
 function splitSentences(text) {

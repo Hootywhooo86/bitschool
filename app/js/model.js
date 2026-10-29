@@ -139,6 +139,8 @@ function checkStory(j, level) {
   const count = words(text).length;
   if (count < s.minWords * 0.75 || count > s.maxWords * 1.4) throw new Error(`Story was ${count} words, wanted about ${s.words}`);
   if (PLACEHOLDER.test(text)) throw new Error('Story text was copied from the instructions');
+  const grade = readingGrade(text), maxGrade = BAND_MAX_GRADE[Math.floor(level / 10)];
+  if (grade > maxGrade) throw new Error(`Story read at grade ${grade.toFixed(1)}, too hard for ${s.name}`);
   const inText = w => words(text).some(x => norm(x) === norm(w));
   const real = q => q && String(q).trim().length > 8 && /\?\s*$/.test(q) && !PLACEHOLDER.test(q);
   // Older replies use "questions"; schema replies use "mc" and "open".
