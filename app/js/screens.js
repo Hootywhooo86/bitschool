@@ -9,7 +9,7 @@ function tile(goTo, ic, label, sub = '', cls = '') {
 function screenHome() {
   const s = Store.state, spec = levelSpec(s.level), due = Store.dueWords().length;
   const name = s.child.name;
-  const streak = s.settings.passesNeeded > 1 ? ` · ${s.passStreak}/${s.settings.passesNeeded} passes in a row` : '';
+  const book = s.placed ? Booklet.get() : null, nextNo = s.placed ? Booklet.next() : 0;
   view().innerHTML = `
     <section class="hero panel">
       <div class="hero-art">${icon('apple', 160, 'bitschool apple')}</div>
@@ -18,7 +18,8 @@ function screenHome() {
         <h1>${name ? 'Hi, ' + esc(name) + '!' : 'Hi, reader!'}</h1>
         ${s.placed ? `
           <div class="level-big" aria-label="Your level">${spec.name}</div>
-          <p class="muted">${esc(spec.grade)} · pass mark ${s.settings.passMark}%${streak}</p>
+          <p class="muted">${esc(spec.grade)} · pass mark ${s.settings.passMark}%</p>
+          ${bookletHTML(book)}
           <div class="bar" role="progressbar" aria-valuemin="1" aria-valuemax="80" aria-valuenow="${s.level + 1}"><i style="width:${(s.level + 1) / LEVEL_COUNT * 100}%"></i></div>
           <p class="muted">Level ${s.level + 1} of ${LEVEL_COUNT} · A-1 to H-10</p>`
         : '<p class="lead">Start with the placement test. It finds the level that fits — not too easy, not too hard.</p>'}
@@ -26,13 +27,25 @@ function screenHome() {
     </section>
     <section class="tiles">
       ${!s.placed ? tile('placement', 'flag', 'PLACEMENT TEST', 'Start here — find your level', 'hot') : ''}
-      ${tile('lesson', 'book', "TODAY'S STORY", s.placed ? 'Level ' + spec.name : 'Unlocks after placement', s.placed ? 'hot' : 'dim')}
+      ${tile('lesson', 'book', "TODAY'S SHEET", s.placed ? `Sheet ${nextNo} of ${book.size} · ${Booklet.kind(nextNo) === 'words' ? 'Word Work' : 'Story'}` : 'Unlocks after placement', s.placed ? 'hot' : 'dim')}
       ${tile('review', 'star', 'WORD REVIEW', due ? due + ' word' + (due > 1 ? 's' : '') + ' to practice' : 'All caught up')}
       ${s.placed ? tile('placement', 'flag', 'RETAKE PLACEMENT', 'Check the level again') : ''}
       ${tile('colors', 'palette', 'COLORS', 'Make it yours')}
       ${tile('parent', 'chart', 'GROWN-UPS', 'Progress & settings')}
     </section>
     <p class="status-line" id="modelStatus">${modelStatus()}</p>`;
+}
+
+// The booklet for this level: one square per sheet, filled in when passed.
+function bookletHTML(book) {
+  if (!book) return '';
+  const cells = [];
+  for (let n = 1; n <= book.size; n++) {
+    const r = book.sheets[n];
+    cells.push(`<span class="sheet-cell ${r ? (r.passed ? 'done' : 'redo') : ''}" title="Sheet ${n}: ${Booklet.kind(n) === 'words' ? 'Word Work' : 'Story'}${r ? ' — ' + r.score + '%' : ''}">${n}</span>`);
+  }
+  return `<div class="booklet" aria-label="Booklet ${levelName(book.level)}: ${Booklet.passedCount()} of ${book.size} sheets passed">
+    <span class="booklet-label">BOOKLET ${levelName(book.level)}</span>${cells.join('')}</div>`;
 }
 
 function modelStatus() {
@@ -152,7 +165,7 @@ function screenPlacement() {
       const s = Store.state;
       const level = lo >= 0 ? probes[lo].level : 0;
       const from = s.level;
-      s.level = level; s.placed = true; s.passStreak = 0;
+      s.level = level; s.placed = true; s.booklet = null;
       s.history.push({ at: Date.now(), from, to: level, why: 'placement' });
       s.placements.push({ at: Date.now(), level, probes: results.map(r => ({ level: r.level, pass: r.pass })) });
       Store.event('placement.done', { level: levelName(level) });
@@ -162,7 +175,7 @@ function screenPlacement() {
           ${icon('trophy', 160)}
           <h1>Your level is</h1>
           <div class="level-big">${levelName(level)}</div>
-          <p class="lead">${esc(levelSpec(level).grade)} reading. Each level is a small step — pass a story with ${s.settings.passMark}% or more and you move up one.</p>
+          <p class="lead">${esc(levelSpec(level).grade)} reading. Each level is a booklet of ${s.settings.sheetsPerBooklet} sheets — Word Work and Stories. Pass every sheet with ${s.settings.passMark}% or more to move up one level.</p>
           <div class="result-list">${results.map(r => `<div class="result-row ${r.pass ? 'good' : 'bad'}"><b>${levelName(r.level)}</b><span>${r.right}/2 questions${r.read.skipped ? '' : ' · ' + r.read.accuracy + '% words · ' + r.read.wpm + ' WPM'}</span><span>${r.pass ? 'PASSED' : 'TOO HARD'}</span></div>`).join('')}</div>
           <div class="row wrap-row center-row">
             <button class="btn" data-go="lesson"><span>START READING ▶</span></button>
@@ -174,12 +187,70 @@ function screenPlacement() {
   }
 }
 
-/* ---------------- Lesson ---------------- */
-const STEPS = [['warmup', 'WORDS'], ['read', 'READ'], ['questions', 'QUESTIONS'], ['circle', 'CIRCLE'], ['blank', 'BLANK'], ['order', 'ORDER'], ['done', 'DONE']];
-
-async function screenLesson() {
+/* ---------------- Sheets ---------------- */
+// Today's work: the next sheet in this level's booklet.
+function screenSheet() {
   const s = Store.state;
   if (!s.placed) { toast('Take the placement test first'); return go('placement'); }
+  const n = Booklet.next();
+  return Booklet.kind(n) === 'words' ? screenWordWork(n) : screenLesson(n);
+}
+
+function sheetHeader(kind, n, level) {
+  const b = Booklet.get();
+  return `<div class="lesson-meta"><span class="pill">${kind === 'words' ? 'WORD WORK' : 'STORY'} · SHEET ${n} OF ${b.size}</span><span class="pill">LEVEL ${levelName(level)}</span>
+    ${b.sheets[n] && !b.sheets[n].passed ? '<span class="muted">Let\'s try this sheet again.</span>' : ''}</div>`;
+}
+
+function screenWordWork(n) {
+  const s = Store.state, level = s.level;
+  view().innerHTML = `<section class="panel">${sheetHeader('words', n, level)}<div id="stage"></div></section>`;
+  const stage = $('#stage');
+  mountWordWork(stage, level, n, { onDone: results => {
+    const score = Math.round(results.reduce((t, r) => t + r.score, 0) / results.length * 100);
+    const outcome = Booklet.record(n, 'words', score);
+    s.sessions.push({ id: uid(), at: Date.now(), level, kind: 'words', sheet: n, title: 'Word Work · sheet ' + n, score, passed: outcome.passed, skills: results });
+    s.sessions = s.sessions.slice(-300);
+    Store.event('worksheet.done', { level: levelName(level), sheet: n, kind: 'words', score, passed: outcome.passed });
+    Store.save();
+    sheetDone(stage, 'words', n, score, outcome, results.map(r => `<div class="result-row ${r.score === 1 ? 'good' : r.score > 0 ? '' : 'bad'}"><b>${esc(r.skill)}</b><span>${r.score === 1 ? '✓' : r.score > 0 ? '½' : '✗'}</span></div>`).join(''));
+  } });
+}
+
+// The end of any sheet: score, what happens next in the booklet, and the way on.
+function sheetDone(stage, kind, n, score, o, detailHTML = '') {
+  const s = Store.state;
+  const stars = score >= 95 ? 3 : score >= o.mark ? 2 : score >= 60 ? 1 : 0;
+  const b = Booklet.get();
+  stage.innerHTML = `
+    <div class="center">
+      ${o.up ? icon('trophy', 160) : ''}
+      <h1>${o.up ? 'BOOKLET DONE — LEVEL UP!' : o.passed ? 'Sheet passed!' : 'Nice work — this sheet comes back next time.'}</h1>
+      ${o.up ? `<div class="level-big">${levelName(o.from)} → ${levelName(o.to)}</div>` : ''}
+      <div class="stars">${[0, 1, 2].map(i => `<span class="${i < stars ? '' : 'off'}">${icon('star')}</span>`).join('')}</div>
+      <div class="tiles-row"><div class="stat"><b>${score}%</b><span>SCORE (PASS ${o.mark}%)</span></div>${kind === 'story' ? '' : ''}</div>
+      ${detailHTML ? `<div class="result-list">${detailHTML}</div>` : ''}
+      ${o.up ? '<p class="lead">You passed every sheet in the booklet. A new booklet starts at the next level.</p>'
+        : `<p class="lead">${Booklet.passedCount()} of ${b.size} sheets passed in booklet ${levelName(b.level)}.${o.passed ? '' : ` Score ${o.mark}% or more to pass a sheet — every try makes you stronger!`}</p>`}
+      ${o.up ? '' : bookletHTML(b)}
+      <div class="row wrap-row center-row">
+        <button class="btn" data-again><span>NEXT SHEET ▶</span></button>
+        <button class="btn alt" data-go="home"><span>HOME</span></button>
+      </div>
+    </div>`;
+  if (o.up || o.passed) Speech.say(o.up ? 'You finished the booklet! Level up!' : 'Sheet passed! Great job!');
+  $('[data-again]', stage).onclick = () => screenSheet();
+  updateTop();
+  prefetch();
+}
+
+/* ---------------- Story sheets ---------------- */
+const STEPS = [['warmup', 'WORDS'], ['read', 'READ'], ['questions', 'QUESTIONS'], ['circle', 'CIRCLE'], ['blank', 'BLANK'], ['order', 'ORDER'], ['done', 'DONE']];
+
+async function screenLesson(n) {
+  const s = Store.state;
+  if (!s.placed) { toast('Take the placement test first'); return go('placement'); }
+  if (!n) n = Booklet.next();
   const level = s.level;
   view().innerHTML = loadingHTML('Getting your story ready…');
   const raw = await getPassage(level, () => { view().innerHTML = loadingHTML('Writing a new ' + levelName(level) + ' story…'); },
@@ -194,7 +265,8 @@ async function screenLesson() {
   view().innerHTML = `
     <section class="panel">
       <div class="pips">${steps.map(k => `<span class="pip" data-step="${k}">${STEPS.find(x => x[0] === k)[1]}</span>`).join('')}</div>
-      <div class="lesson-meta"><span class="pill">LEVEL ${levelName(level)}</span><span class="muted">${p.source === 'model' ? 'A new story written for this level' : 'Built-in story'}</span></div>
+      ${sheetHeader('story', n, level)}
+      <p class="muted">${p.source === 'model' ? 'A new story written for this level' : 'Built-in story'}</p>
       <div id="stage"></div>
     </section>`;
   const stage = $('#stage');
@@ -219,21 +291,11 @@ async function screenLesson() {
     const taskPct = items.length ? Math.round(items.filter(Boolean).length / items.length * 100) : 0;
     const read = res.read && !res.read.skipped ? res.read : null;
     const score = Math.round(read ? 0.4 * read.accuracy + 0.6 * taskPct : taskPct);
-    const mark = s.settings.passMark, passed = score >= mark;
-    const from = s.level;
-    let up = false;
-    if (passed) {
-      s.passStreak++;
-      if (s.passStreak >= s.settings.passesNeeded && s.level < LEVEL_COUNT - 1) {
-        s.level++; s.passStreak = 0; up = true;
-        s.history.push({ at: Date.now(), from, to: s.level, why: 'passed ' + score + '%' });
-        Store.event('level.up', { from: levelName(from), to: levelName(s.level) });
-      }
-    } else s.passStreak = 0;
+    const outcome = Booklet.record(n, 'story', score), passed = outcome.passed, from = level;
     (read ? read.missed : []).forEach(w => Store.missWord(w));
     const session = {
       id: uid(), at: Date.now(), level: from, title: p.title, passageId: p.id, source: p.source, topic: p.topic || '',
-      text: p.text, wpm: read ? read.wpm : null, accuracy: read ? read.accuracy : null, seconds: read ? read.seconds : null,
+      kind: 'story', sheet: n, text: p.text, wpm: read ? read.wpm : null, accuracy: read ? read.accuracy : null, seconds: read ? read.seconds : null,
       mode: read ? read.mode : 'skipped', recId: read ? read.recId : null, missed: read ? read.missed : [],
       taskPct, score, passed, questions: res.questions, circle: res.circle, blank: res.blank, order: res.order,
     };
@@ -241,29 +303,8 @@ async function screenLesson() {
     s.sessions = s.sessions.slice(-300);
     Store.event('reading.session', { level: levelName(from), score, wpm: session.wpm, accuracy: session.accuracy, passed });
     Store.save();
-    const stars = score >= 95 ? 3 : score >= mark ? 2 : score >= 60 ? 1 : 0;
-    stage.innerHTML = `
-      <div class="center">
-        ${up ? icon('trophy', 160) : ''}
-        <h1>${up ? 'LEVEL UP!' : passed ? 'You passed!' : 'Nice work — let\'s practice this level again.'}</h1>
-        ${up ? `<div class="level-big">${levelName(from)} → ${levelName(s.level)}</div>` : ''}
-        <div class="stars">${[0, 1, 2].map(i => `<span class="${i < stars ? '' : 'off'}">${icon('star')}</span>`).join('')}</div>
-        <div class="tiles-row">
-          <div class="stat"><b>${score}%</b><span>SCORE (PASS ${mark}%)</span></div>
-          ${read ? `<div class="stat"><b>${read.accuracy}%</b><span>WORDS READ RIGHT</span></div><div class="stat"><b>${read.wpm}</b><span>WORDS / MIN</span></div>` : ''}
-          <div class="stat"><b>${taskPct}%</b><span>QUESTIONS & TASKS</span></div>
-        </div>
-        ${!up && passed && s.settings.passesNeeded > 1 ? `<p class="lead">${s.passStreak} of ${s.settings.passesNeeded} passes in a row to move up.</p>` : ''}
-        ${!passed ? `<p class="lead">Score ${mark}% or more to move up to the next level. Every try makes you stronger!</p>` : ''}
-        <div class="row wrap-row center-row">
-          <button class="btn" data-again><span>${passed ? 'NEXT STORY ▶' : 'TRY ANOTHER STORY ▶'}</span></button>
-          <button class="btn alt" data-go="home"><span>HOME</span></button>
-        </div>
-      </div>`;
-    if (up || passed) Speech.say(up ? 'Level up! Great job!' : 'You passed! Great job!');
-    $('[data-again]', stage).onclick = () => screenLesson();
-    updateTop();
-    prefetch();
+    sheetDone(stage, 'story', n, score, outcome, (read ? `<div class="result-row"><b>Reading</b><span>${read.accuracy}% of words · ${read.wpm} words a minute</span></div>` : '')
+      + `<div class="result-row"><b>Questions & tasks</b><span>${taskPct}%</span></div>`);
   }
 }
 

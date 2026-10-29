@@ -95,16 +95,17 @@ function tabProgress(el) {
       <div class="stat"><b>${s.placed ? spec.name : '—'}</b><span>LEVEL</span></div>
       <div class="stat"><b>${avg(last5, 'wpm')}</b><span>WPM (LAST 5) · GOAL ${spec.wpmGoal}</span></div>
       <div class="stat"><b>${avg(last5, 'accuracy')}${last5.length ? '%' : ''}</b><span>ACCURACY (LAST 5)</span></div>
-      <div class="stat"><b>${lessons.length}</b><span>STORIES READ</span></div>
+      <div class="stat"><b>${lessons.length}</b><span>SHEETS DONE</span></div>
       <div class="stat"><b>${lessons.filter(x => x.at > weekAgo).length}</b><span>THIS WEEK</span></div>
     </div>
+    ${s.placed ? `<h2 class="sub-h">Current booklet</h2>${bookletHTML(Booklet.get())}<p class="muted">${Booklet.passedCount()} of ${Booklet.get().size} sheets passed. Odd sheets are Word Work, even sheets are Stories.</p>` : ''}
     ${lineChart('wpmChart', 'Reading speed (words per minute)', pts('wpm'), { goal: spec.wpmGoal })}
     ${lineChart('accChart', 'Accuracy (% of words read right)', pts('accuracy'), { unit: '%', max: 100 })}
     <h2 class="sub-h">Level changes</h2>
     ${s.history.length ? `<table class="data"><tr><th>Date</th><th>From</th><th>To</th><th>Why</th></tr>${s.history.slice().reverse().map(h => `<tr><td>${fmtDate(h.at)}</td><td>${levelName(h.from)}</td><td>${levelName(h.to)}</td><td>${esc(h.why)}</td></tr>`).join('')}</table>` : '<p class="muted">No level changes yet.</p>'}
     <h2 class="sub-h">Recent stories</h2>
-    ${s.sessions.length ? `<table class="data"><tr><th>Date</th><th>Level</th><th>Story</th><th>WPM</th><th>Accuracy</th><th>Score</th><th></th></tr>
-      ${s.sessions.slice(-40).reverse().map(x => `<tr><td>${fmtDate(x.at)}</td><td>${levelName(x.level)}</td><td>${esc(x.title)}${x.placement ? ' <i class="muted">(placement)</i>' : ''}</td><td>${x.wpm ?? '—'}</td><td>${x.accuracy != null ? x.accuracy + '%' : '—'}</td><td>${x.score != null ? x.score + '%' : '—'}</td><td>${x.passed ? '✓ pass' : '✗'}</td></tr>`).join('')}</table>` : '<p class="muted">Nothing read yet.</p>'}`;
+    ${s.sessions.length ? `<table class="data"><tr><th>Date</th><th>Level</th><th>Sheet</th><th>WPM</th><th>Accuracy</th><th>Score</th><th></th></tr>
+      ${s.sessions.slice(-40).reverse().map(x => `<tr><td>${fmtDate(x.at)}</td><td>${levelName(x.level)}</td><td>${x.sheet ? '#' + x.sheet + ' ' : ''}${esc(x.title)}${x.placement ? ' <i class="muted">(placement)</i>' : ''}</td><td>${x.wpm ?? '—'}</td><td>${x.accuracy != null ? x.accuracy + '%' : '—'}</td><td>${x.score != null ? x.score + '%' : '—'}</td><td>${x.passed ? '✓ pass' : '✗'}</td></tr>`).join('')}</table>` : '<p class="muted">Nothing read yet.</p>'}`;
   wireCharts(el);
 }
 
@@ -189,14 +190,14 @@ function tabSettings(el) {
     </div>
 
     <h2 class="sub-h">Moving up</h2>
-    <p class="muted">Like Kumon: a story is passed when the score (40% read-aloud accuracy, 60% questions and tasks) reaches the pass mark.</p>
+    <p class="muted">Like Kumon: each level is a booklet of sheets that alternate Word Work and Stories. A sheet passes at the pass mark (a Story sheet scores 40% read-aloud accuracy and 60% questions and tasks); a sheet below it comes back until it passes. Passing every sheet in the booklet moves him up one level.</p>
     <div class="row wrap-row">
       <button class="btn alt" data-mark="-5"><span>− 5</span></button>
       <div class="stat"><b>${st.passMark}%</b><span>PASS MARK</span></div>
       <button class="btn alt" data-mark="5"><span>+ 5</span></button>
-      <button class="btn alt" data-passes="-1"><span>−</span></button>
-      <div class="stat"><b>${st.passesNeeded}</b><span>PASSES IN A ROW TO MOVE UP</span></div>
-      <button class="btn alt" data-passes="1"><span>+</span></button>
+      <button class="btn alt" data-sheets="-2"><span>−</span></button>
+      <div class="stat"><b>${st.sheetsPerBooklet}</b><span>SHEETS PER BOOKLET</span></div>
+      <button class="btn alt" data-sheets="2"><span>+</span></button>
     </div>
     <div class="row wrap-row"><button class="btn alt ${st.allowSkipRead ? 'on' : ''}" data-skip><span>SKIP READ-ALOUD ALLOWED: ${st.allowSkipRead ? 'ON' : 'OFF'}</span></button></div>
 
@@ -237,10 +238,10 @@ function tabSettings(el) {
     const to = Math.max(0, Math.min(LEVEL_COUNT - 1, s.level + +b.dataset.lv));
     if (to === s.level) return;
     s.history.push({ at: Date.now(), from: s.level, to, why: 'set by grown-up' });
-    s.level = to; s.placed = true; s.passStreak = 0; rerender();
+    s.level = to; s.placed = true; s.booklet = null; rerender();
   });
   $$('[data-mark]', el).forEach(b => b.onclick = () => { st.passMark = Math.max(50, Math.min(100, st.passMark + +b.dataset.mark)); rerender(); });
-  $$('[data-passes]', el).forEach(b => b.onclick = () => { st.passesNeeded = Math.max(1, Math.min(5, st.passesNeeded + +b.dataset.passes)); rerender(); });
+  $$('[data-sheets]', el).forEach(b => b.onclick = () => { st.sheetsPerBooklet = Math.max(2, Math.min(10, st.sheetsPerBooklet + +b.dataset.sheets)); rerender(); });
   $('[data-skip]', el).onclick = () => { st.allowSkipRead = !st.allowSkipRead; rerender(); };
   $$('[data-where]', el).forEach(b => b.onclick = async () => {
     if (b.dataset.where === 'device') {

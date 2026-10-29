@@ -18,9 +18,9 @@ const Store = {
   defaults() {
     return {
       child: { name: '' },
-      placed: false, level: 0, passStreak: 0,
+      placed: false, level: 0, booklet: null,
       settings: {
-        passMark: 85, passesNeeded: 1, allowSkipRead: false, readSize: 30,
+        passMark: 85, sheetsPerBooklet: 6, allowSkipRead: false, readSize: 30,
         theme: { ...THEMES.chalkboard }, themeName: 'chalkboard',
         model: { endpoint: 'http://localhost:11434', api: Device.available() ? 'device' : 'ollama', name: 'qwen3:8b', vision: '', device: '' },
       },

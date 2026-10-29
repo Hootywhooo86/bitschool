@@ -194,6 +194,22 @@ table.data{width:100%;border-collapse:collapse;margin:12px 0;font-size:16px}
 .rec-row,.check-row{padding:16px;background:var(--bg);border:3px solid var(--line);margin:12px 0}
 .player audio{width:100%;min-height:54px}
 .hand{max-width:100%;min-height:128px;background:#fff;border:3px solid var(--line)}
+.booklet{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0}
+.booklet-label{font-family:var(--pixel);font-size:11px;color:var(--muted);margin-right:6px}
+.sheet-cell{width:40px;height:40px;display:grid;place-items:center;font-family:var(--pixel);font-size:12px;border:3px solid var(--line);background:var(--bg);color:var(--muted)}
+.sheet-cell.done{background:var(--accent);border-color:var(--accent-deep);color:var(--on-accent)}
+.sheet-cell.redo{border-color:var(--accent2);color:var(--accent2)}
+.center .booklet{justify-content:center}
+.match-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:16px;margin:14px 0}
+.match-col{display:grid;gap:12px;align-content:start}
+.match-col .btn{width:100%}
+.match-def{font-family:'Inter',sans-serif;font-size:18px;font-weight:600;text-align:left;justify-content:flex-start}
+.btn.right{background:var(--accent);color:var(--on-accent);border-color:var(--accent-deep)}
+.btn.wrong{background:var(--bad);color:var(--on-bad)}
+.build-line{min-height:var(--min);display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:12px;border:3px dashed var(--line);background:var(--bg);margin:12px 0}
+.build-tiles{display:flex;flex-wrap:wrap;gap:10px;margin:12px 0}
+.wtile.btn{font-family:'Inter',sans-serif;font-size:22px;font-weight:700;padding:10px 18px}
+.q mark{background:var(--accent2);color:var(--on-accent2);padding:0 4px}
 .model-list{display:grid;gap:16px;margin:12px 0}
 .model-card{background:var(--bg);border:3px solid var(--line);padding:18px}
 .model-card.on{border-color:var(--accent)}
@@ -213,6 +229,7 @@ table.data{width:100%;border-collapse:collapse;margin:12px 0;font-size:16px}
 footer{text-align:center;color:var(--muted);font-size:14px;padding:20px 0 40px}
 
 @media (max-width:600px){
+  .match-grid{grid-template-columns:1fr}
   .panel{padding:16px}
   .brand b{font-size:16px}
   .btn{font-size:12px;padding:10px 14px}
