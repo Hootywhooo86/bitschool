@@ -37,18 +37,27 @@ function screenHome() {
 
 function modelStatus() {
   const m = Store.state.settings.model;
+  if (m.api === 'device') {
+    const dm = Device.selected();
+    if (Model.online) return `✓ Story writer ready — ${esc(dm.name)} on this device writes new stories for each level.`;
+    return Device.available() ? '○ No story writer downloaded yet — using the built-in stories. Download one in Grown-ups → Settings.'
+      : '○ Story writer offline — using the built-in stories.';
+  }
   return Model.online ? `✓ Story writer online — ${esc(m.name)} writes new stories for each level.`
     : '○ Story writer offline — using the built-in stories. Grown-ups can connect a local model in Settings.';
 }
 
 /* ---------------- Getting a passage ---------------- */
-let prefetching = false;
-async function getPassage(level, onWait) {
-  const s = Store.state, cache = s.cache[level] || [];
+let prefetching = null;
+async function getPassage(level, onWait, onProgress) {
+  const s = Store.state;
+  // A story being written in the background is usually the one we need: wait for it rather than start another.
+  if (!(s.cache[level] || []).length && prefetching) { onWait && onWait(); await prefetching; }
+  const cache = s.cache[level] || [];
   if (cache.length) { const p = cache.shift(); s.cache[level] = cache; Store.save(); return p; }
   if (Model.online) {
     onWait && onWait();
-    try { return await Model.writeStory(level); }
+    try { return await Model.writeStory(level, onProgress); }
     catch (e) { toast('The story writer had trouble — using a built-in story'); }
   }
   const b = builtinFor(level, s.usedBuiltins);
@@ -57,23 +66,25 @@ async function getPassage(level, onWait) {
   return b;
 }
 // Write the next stories in the background so the child does not wait.
-async function prefetch() {
-  if (prefetching || !Model.online || !Store.state.placed) return;
-  prefetching = true;
-  try {
-    for (const lv of [Store.state.level, Math.min(LEVEL_COUNT - 1, Store.state.level + 1)]) {
-      const c = Store.state.cache[lv] || [];
-      if (c.length) continue;
-      const p = await Model.writeStory(lv);
-      (Store.state.cache[lv] = Store.state.cache[lv] || []).push(p);
-      Store.save();
-    }
-  } catch (e) {}
-  prefetching = false;
+function prefetch() {
+  if (prefetching || !Model.online || !Store.state.placed) return prefetching;
+  prefetching = (async () => {
+    try {
+      for (const lv of [Store.state.level, Math.min(LEVEL_COUNT - 1, Store.state.level + 1)]) {
+        const c = Store.state.cache[lv] || [];
+        if (c.length) continue;
+        const p = await Model.writeStory(lv);
+        (Store.state.cache[lv] = Store.state.cache[lv] || []).push(p);
+        Store.save();
+      }
+    } catch (e) {}
+    prefetching = null;
+  })();
+  return prefetching;
 }
 
 function loadingHTML(text) {
-  return `<div class="loading panel">${icon('apple', 160)}<h2>${esc(text)}</h2><p class="muted">The story writer is making something just for this level.</p></div>`;
+  return `<div class="loading panel">${icon('apple', 160)}<h2>${esc(text)}</h2><p class="muted">The story writer is making something just for this level.</p><p class="muted" id="writeProgress"></p></div>`;
 }
 
 /* ---------------- Placement ---------------- */
@@ -171,7 +182,8 @@ async function screenLesson() {
   if (!s.placed) { toast('Take the placement test first'); return go('placement'); }
   const level = s.level;
   view().innerHTML = loadingHTML('Getting your story ready…');
-  const raw = await getPassage(level, () => { view().innerHTML = loadingHTML('Writing a new ' + levelName(level) + ' story…'); });
+  const raw = await getPassage(level, () => { view().innerHTML = loadingHTML('Writing a new ' + levelName(level) + ' story…'); },
+    n => { const el = $('#writeProgress'); if (el) el.textContent = 'About ' + Math.min(99, Math.round(n / (levelSpec(level).words * 1.4 + 250) * 100)) + '% written'; });
   if (!location.hash.includes('lesson')) return; // left while waiting
   const p = preparePassage(raw);
   const due = Store.dueWords(5);

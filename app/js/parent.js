@@ -200,27 +200,30 @@ function tabSettings(el) {
     </div>
     <div class="row wrap-row"><button class="btn alt ${st.allowSkipRead ? 'on' : ''}" data-skip><span>SKIP READ-ALOUD ALLOWED: ${st.allowSkipRead ? 'ON' : 'OFF'}</span></button></div>
 
-    <h2 class="sub-h">Story writer (local model)</h2>
-    <p class="muted">Stories, open-answer checking and word meanings come from a model running on this computer — nothing is sent to the internet. Default: Qwen through <a href="https://ollama.com" target="_blank" rel="noopener">Ollama</a>.</p>
+    <h2 class="sub-h">Story writer</h2>
+    <p class="muted">Stories, open-answer checking and word meanings come from an AI model that runs on your own device or computer. Nothing is sent to the internet except the one-time model download.</p>
+    <div class="row wrap-row">
+      <button class="btn alt ${m.api === 'device' ? 'on' : ''}" data-where="device"><span>ON THIS DEVICE</span></button>
+      <button class="btn alt ${m.api !== 'device' ? 'on' : ''}" data-where="computer"><span>ON A COMPUTER (OLLAMA)</span></button>
+    </div>
+    ${m.api === 'device' ? deviceModelsHTML() : `
     <div class="form-grid">
       <label>Server type<select class="input" data-api><option value="ollama" ${m.api === 'ollama' ? 'selected' : ''}>Ollama</option><option value="openai" ${m.api === 'openai' ? 'selected' : ''}>OpenAI-compatible (LM Studio, llama.cpp)</option></select></label>
       <label>Address<input class="input" data-endpoint value="${esc(m.endpoint)}"></label>
       <label>Story model<input class="input" data-modelname list="modelList" value="${esc(m.name)}"></label>
-      <label>Handwriting model (optional, needs vision, e.g. qwen2.5vl:7b)<input class="input" data-vision list="modelList" value="${esc(m.vision)}"></label>
+      <label>Handwriting model (optional, needs vision, e.g. qwen3.5:4b)<input class="input" data-vision list="modelList" value="${esc(m.vision)}"></label>
       <datalist id="modelList">${Model.models.map(x => `<option value="${esc(x)}">`).join('')}</datalist>
     </div>
-    <div class="row wrap-row">
-      <button class="btn" data-savemodel><span>SAVE & TEST</span></button>
-      <button class="btn alt" data-sample><span>WRITE A SAMPLE STORY</span></button>
-    </div>
-    <p class="status-line" data-mstatus>${modelStatus()}</p>
-    <details class="help"><summary class="btn alt"><span>HOW TO SET UP QWEN</span></summary>
+    <div class="row wrap-row"><button class="btn" data-savemodel><span>SAVE & TEST</span></button></div>
+    <details class="help"><summary class="btn alt"><span>HOW TO SET UP OLLAMA</span></summary>
       <ol>
-        <li>Install Ollama from ollama.com.</li>
-        <li>Download a model: <code>ollama pull qwen3:8b</code> (or <code>qwen2.5:7b</code> on smaller computers).</li>
-        <li>Let this page talk to it: start Ollama with <code>OLLAMA_ORIGINS=*</code> set (on a Mac: <code>launchctl setenv OLLAMA_ORIGINS "*"</code>, then restart Ollama).</li>
-        <li>Press SAVE & TEST above. On a tablet, use the computer's address, e.g. <code>http://192.168.1.20:11434</code>, and start Ollama with <code>OLLAMA_HOST=0.0.0.0</code>.</li>
-      </ol></details>
+        <li>Install Ollama from ollama.com on a computer.</li>
+        <li>Download a model: <code>ollama pull qwen3.5:4b</code> (or <code>qwen3.5:9b</code> on a strong computer).</li>
+        <li>Let the app talk to it: start Ollama with <code>OLLAMA_ORIGINS=*</code> set (on a Mac: <code>launchctl setenv OLLAMA_ORIGINS "*"</code>, then restart Ollama).</li>
+        <li>From a phone or tablet, use the computer's address, e.g. <code>http://192.168.1.20:11434</code>, and start Ollama with <code>OLLAMA_HOST=0.0.0.0</code>. Then press SAVE & TEST.</li>
+      </ol></details>`}
+    <div class="row wrap-row"><button class="btn alt" data-sample><span>WRITE A SAMPLE STORY</span></button></div>
+    <p class="status-line" data-mstatus>${modelStatus()}</p>
 
     <h2 class="sub-h">Data</h2>
     <p class="muted">Everything is saved on this device only. ${s.outbox.length} family-feed events are queued for the 128bit family timeline.</p>
@@ -239,7 +242,15 @@ function tabSettings(el) {
   $$('[data-mark]', el).forEach(b => b.onclick = () => { st.passMark = Math.max(50, Math.min(100, st.passMark + +b.dataset.mark)); rerender(); });
   $$('[data-passes]', el).forEach(b => b.onclick = () => { st.passesNeeded = Math.max(1, Math.min(5, st.passesNeeded + +b.dataset.passes)); rerender(); });
   $('[data-skip]', el).onclick = () => { st.allowSkipRead = !st.allowSkipRead; rerender(); };
-  $('[data-savemodel]', el).onclick = async () => {
+  $$('[data-where]', el).forEach(b => b.onclick = async () => {
+    if (b.dataset.where === 'device') {
+      if (!Device.available()) { toast('Downloading a model works in the Android and Windows apps'); return; }
+      m.api = 'device';
+    } else if (m.api === 'device') m.api = 'ollama';
+    Store.save(); await Model.ping(); tabSettings(el); prefetch();
+  });
+  wireDeviceModels(el, () => tabSettings(el));
+  if ($('[data-savemodel]', el)) $('[data-savemodel]', el).onclick = async () => {
     m.api = $('[data-api]', el).value; m.endpoint = $('[data-endpoint]', el).value.trim(); m.name = $('[data-modelname]', el).value.trim(); m.vision = $('[data-vision]', el).value.trim();
     Store.save();
     $('[data-mstatus]', el).textContent = 'Testing…';
@@ -251,10 +262,10 @@ function tabSettings(el) {
     if (Model.online) prefetch();
   };
   $('[data-sample]', el).onclick = async () => {
-    if (!Model.online) { toast('Connect the story writer first'); return; }
+    if (!Model.online) { toast(m.api === 'device' ? 'Download a story writer first' : 'Connect the story writer first'); return; }
     const b = $('[data-sample]', el); b.disabled = true; $('span', b).textContent = 'WRITING…';
     try {
-      const p = preparePassage(await Model.writeStory(s.level));
+      const p = preparePassage(await Model.writeStory(s.level, n => { $('span', b).textContent = 'WRITING… ' + n; }));
       const mm = modal(`<h2>${esc(p.title)} <span class="pill">${levelName(p.level)}</span></h2>
         <p class="muted">${words(p.text).length} words (target ${levelSpec(p.level).words})</p>
         <div class="story small">${esc(p.text).replace(/\n/g, '<br>')}</div>
@@ -275,4 +286,64 @@ function tabSettings(el) {
     if (!confirm('Erase all progress, words and recordings on this device?')) return;
     Store.reset(); await Blobs.clear().catch(() => {}); applyTheme(); sessionStorage.removeItem('bitschool.parent'); go('home'); updateTop();
   };
+}
+
+// The models a grown-up can download onto this device, with progress while downloading.
+function deviceModelsHTML() {
+  if (!Device.available()) return '<p class="muted">Downloading a story writer onto the device works in the Android and Windows apps. In a web browser, use a computer with Ollama.</p>';
+  const st = Device.state, rec = Device.recommended(), sel = Device.selected();
+  const gb = b => (b / 1e9).toFixed(1) + ' GB';
+  return `
+    <p class="muted">This ${Device.isPC() ? 'computer' : 'device'}: ${st.ram ? gb(st.ram) + ' memory · ' : ''}${st.freeSpace ? gb(st.freeSpace) + ' free space' : ''}</p>
+    <div class="model-list">${DEVICE_MODELS.map(dm => {
+      const has = Device.has(dm), dl = Device.downloading && Device.downloading.id === dm.id;
+      const lowRam = st.ram && st.ram < dm.ramGB * 0.9e9;
+      return `<div class="model-card ${sel === dm ? 'on' : ''}" data-model="${dm.id}">
+        <div class="model-head"><b>${esc(dm.name)}</b>${dm === rec ? '<span class="pill">RECOMMENDED HERE</span>' : ''}${sel === dm && has ? '<span class="pill">IN USE ✓</span>' : ''}</div>
+        <p>${esc(dm.note)}</p>
+        <p class="muted">${gb(dm.size)} download · needs about ${dm.ramGB} GB memory${lowRam ? ' — <b class="bad">more than this device has</b>' : ''}</p>
+        <div class="bar ${dl ? '' : 'hidden'}"><i style="width:${dl ? Math.round(Device.downloading.loaded / Device.downloading.total * 100) : 0}%"></i></div>
+        <p class="muted dl-text">${dl ? 'Downloading… ' + Math.round(Device.downloading.loaded / Device.downloading.total * 100) + '%' : has ? 'Downloaded ✓' : ''}</p>
+        <div class="row wrap-row">
+          ${dl ? '<button class="btn warn" data-dlcancel><span>STOP DOWNLOAD</span></button>'
+            : has ? `${sel !== dm ? '<button class="btn" data-use><span>USE THIS ONE</span></button>' : ''}<button class="btn warn" data-del><span>DELETE</span></button>`
+            : `<button class="btn" data-dl ${Device.downloading ? 'disabled' : ''}><span>DOWNLOAD</span></button>`}
+        </div>
+      </div>`;
+    }).join('')}</div>`;
+}
+
+function wireDeviceModels(el, rerender) {
+  const m = Store.state.settings.model;
+  $$('[data-model]', el).forEach(card => {
+    const dm = Device.model(card.dataset.model);
+    const go = (sel, fn) => { const b = $(sel, card); if (b) b.onclick = fn; };
+    go('[data-dl]', async () => {
+      if (Device.state.ram && Device.state.ram < dm.ramGB * 0.9e9 && !confirm(dm.name + ' needs more memory than this device has and may not run. Download anyway?')) return;
+      const bar = $('.bar', card), text = $('.dl-text', card);
+      bar.classList.remove('hidden');
+      $('[data-dl]', card).outerHTML = '<button class="btn warn" data-dlcancel><span>STOP DOWNLOAD</span></button>';
+      $('[data-dlcancel]', card).onclick = () => Device.cancel();
+      try {
+        await Device.download(dm, p => {
+          const pct = Math.round(p.loaded / p.total * 100);
+          $('i', bar).style.width = pct + '%';
+          text.textContent = `Downloading… ${pct}% (${(p.loaded / 1e9).toFixed(2)} of ${(p.total / 1e9).toFixed(2)} GB)`;
+        });
+        if (!Device.has(Device.selected())) m.device = dm.id; // the first download becomes the one in use
+        Store.save();
+        toast(dm.name + ' downloaded');
+        await Model.ping(); prefetch();
+      } catch (e) { toast(e.message + (e.message === 'Download stopped' ? '' : ' — press DOWNLOAD to resume')); }
+      rerender();
+    });
+    go('[data-dlcancel]', () => Device.cancel());
+    go('[data-use]', async () => { m.device = dm.id; Store.save(); await Model.ping(); rerender(); prefetch(); });
+    go('[data-del]', async () => {
+      if (!confirm('Delete ' + dm.name + ' from this device? You can download it again later.')) return;
+      await Device.remove(dm);
+      if (m.device === dm.id) m.device = '';
+      Store.save(); await Model.ping(); rerender();
+    });
+  });
 }

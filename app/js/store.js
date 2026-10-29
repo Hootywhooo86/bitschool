@@ -22,7 +22,7 @@ const Store = {
       settings: {
         passMark: 85, passesNeeded: 1, allowSkipRead: false, readSize: 30,
         theme: { ...THEMES.chalkboard }, themeName: 'chalkboard',
-        model: { endpoint: 'http://localhost:11434', api: 'ollama', name: 'qwen3:8b', vision: '' },
+        model: { endpoint: 'http://localhost:11434', api: Device.available() ? 'device' : 'ollama', name: 'qwen3:8b', vision: '', device: '' },
       },
       sessions: [], words: {}, cache: {}, usedBuiltins: [], pending: [], history: [], outbox: [], placements: [],
     };
@@ -32,6 +32,9 @@ const Store = {
     try { s = JSON.parse(localStorage.getItem(this.key)); } catch (e) {}
     const d = this.defaults();
     this.state = s ? { ...d, ...s, settings: { ...d.settings, ...s.settings, model: { ...d.settings.model, ...(s.settings || {}).model } } } : d;
+    // A phone can't reach Ollama at its own "localhost", so older Android installs move to the on-device writer.
+    const m = this.state.settings.model;
+    if (NATIVE && Device.available() && m.api === 'ollama' && /localhost|127\.0\.0\.1/.test(m.endpoint)) m.api = 'device';
     return this.state;
   },
   save() {

@@ -194,6 +194,12 @@ table.data{width:100%;border-collapse:collapse;margin:12px 0;font-size:16px}
 .rec-row,.check-row{padding:16px;background:var(--bg);border:3px solid var(--line);margin:12px 0}
 .player audio{width:100%;min-height:54px}
 .hand{max-width:100%;min-height:128px;background:#fff;border:3px solid var(--line)}
+.model-list{display:grid;gap:16px;margin:12px 0}
+.model-card{background:var(--bg);border:3px solid var(--line);padding:18px}
+.model-card.on{border-color:var(--accent)}
+.model-head{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+.model-head b{font-family:var(--pixel);font-size:16px;color:var(--accent2)}
+.model-card p{margin:6px 0}
 .form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px 18px}
 .form-grid label{font-weight:700;font-size:15px}
 .help ol{margin:14px 0 0 24px;line-height:1.9}
