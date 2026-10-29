@@ -56,21 +56,23 @@ const Model = {
     const genre = level >= 30 && n % 3 === 2 ? 'nonfiction (true facts, explained simply)' : 'story';
     const recent = Store.state.sessions.slice(-8).map(x => x.topic).filter(Boolean);
     const topic = shuffle(TOPICS.filter(t => !recent.includes(t)))[0];
+    const sentences = Math.max(4, Math.round(s.words / s.sentenceWords));
+    const paras = s.words < 70 ? 'one paragraph' : s.words < 160 ? 'two or three paragraphs' : s.words < 260 ? 'three or four paragraphs' : 'four or five paragraphs';
     const system = 'You write original reading-practice passages for children, like the stories in graded readers. You reply with JSON only.';
     const user = `Write an original ${genre} for a child reading at level ${s.name} (${s.grade}). Topic: ${topic}.
 
 The passage ("text"):
-- ${s.minWords} to ${s.maxWords} words long. Aim for ${s.words}.
+- About ${sentences} sentences in ${paras}. That is about ${s.words} words (never fewer than ${s.minWords} or more than ${s.maxWords}).
 - Sentences average about ${s.sentenceWords} words.
-- Vocabulary: ${s.vocab}.
-- Warm, safe and fun. Nobody gets hurt, lost forever or scared. No brands.
+- Word choice: ${s.vocab}.
+- Warm, safe and fun. Nobody gets hurt, lost forever or scared. No brands.${genre.startsWith('nonfiction') ? '\n- Only state facts you are certain are true.' : ''}
 - Separate paragraphs with a blank line.
 
 Then, about that passage:
 - "title": a short title.
-- "mc": two multiple-choice questions that practice ${s.skills}. Each has "q" (a real question about this passage, ending with ?), "right" (the correct answer) and "wrong" (two answers that are clearly wrong but believable).
+- "mc": two multiple-choice questions that practice ${s.skills}. Each has "q" (a real question about this passage, ending with ?), "right" (the correct answer, exactly as the passage says) and "wrong" (two answers the passage shows are wrong but that sound believable).
 - "open": one question about the main idea or why something happened ("q"), and "idea": one sentence saying what a good answer must include.
-- "vocab": two to four of the harder words that appear in the passage, each with a "meaning" a child understands.
+- "vocab": two to four harder words copied from the passage itself, each with a "meaning" a child understands.
 - "circle": a "sentence" copied exactly from the passage, a "prompt" telling the child what to circle in it (${level < 20 ? 'an animal, a thing or a color' : level < 40 ? 'the verb' : 'the describing word'}), and "targets": the word or words from that sentence to circle.
 - "mainIdea": the one sentence copied exactly from the passage that best states its main idea.`;
     let last;
@@ -133,7 +135,7 @@ const PLACEHOLDER = /\b(a question|correct answer|wrong answer|question about|on
 // Model output is checked before a child sees it: right length, real questions, answers shuffled.
 function checkStory(j, level) {
   const s = levelSpec(level);
-  const text = String(j.text || '').replace(/\\n/g, '\n').trim();
+  const text = String(j.text || '').replace(/\\n/g, '\n').replace(/[\s{}\[\]]+$/, '').replace(/^[\s>-]+(?=["“A-Z])/, '').trim();
   const count = words(text).length;
   if (count < s.minWords * 0.75 || count > s.maxWords * 1.4) throw new Error(`Story was ${count} words, wanted about ${s.words}`);
   if (PLACEHOLDER.test(text)) throw new Error('Story text was copied from the instructions');
