@@ -11,10 +11,20 @@ function route() {
   Speech.stop();
   $$('.overlay').forEach(o => o.remove());
   const name = location.hash.replace(/^#\/?/, '') || 'home';
-  (ROUTES[name] || screenHome)();
+  try { (ROUTES[name] || screenHome)(); }
+  catch (e) { showProblem(e); }
   updateTop();
   window.scrollTo(0, 0);
 }
+
+// A failure shows on screen (with a way home) instead of leaving a page that does nothing.
+function showProblem(e) {
+  console.error(e);
+  view().innerHTML = `<section class="panel center">${icon('apple', 160)}<h1>Something went wrong</h1>
+    <p class="lead">${esc((e && e.message) || e)}</p><button class="btn" data-go="home"><span>HOME</span></button></section>`;
+}
+window.addEventListener('error', e => toast('Problem: ' + e.message));
+window.addEventListener('unhandledrejection', e => toast('Problem: ' + ((e.reason && e.reason.message) || e.reason)));
 
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-go]');

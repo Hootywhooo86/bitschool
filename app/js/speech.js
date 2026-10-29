@@ -1,14 +1,16 @@
 // In the Android app the phone's own recognizer and voice are used (the WebView has neither).
 // The Windows app has no speech recognition, so reading uses grown-up helper mode there.
-const NATIVE = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform();
+// Capacitor's Android bridge injects each native plugin as window.Capacitor.Plugins.<Name>.
+const NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+const nativePlugin = name => (NATIVE && window.Capacitor.Plugins && window.Capacitor.Plugins[name]) || null;
 const IN_ELECTRON = /Electron/.test(navigator.userAgent);
-const SR = NATIVE ? nativeRecognizer() : IN_ELECTRON ? null : (window.SpeechRecognition || window.webkitSpeechRecognition);
-const NativeTTS = NATIVE ? window.Capacitor.registerPlugin('TextToSpeech') : null;
+const SR = nativePlugin('SpeechRecognition') ? nativeRecognizer() : NATIVE || IN_ELECTRON ? null : (window.SpeechRecognition || window.webkitSpeechRecognition);
+const NativeTTS = nativePlugin('TextToSpeech');
 const NUMBERS = 'zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty'.split(' ');
 
 // Wraps the Android speech plugin in the same shape as the browser's SpeechRecognition.
 function nativeRecognizer() {
-  const plugin = window.Capacitor.registerPlugin('SpeechRecognition');
+  const plugin = nativePlugin('SpeechRecognition');
   return class NativeRecognition {
     constructor() { this.lang = 'en-US'; this.continuous = false; this.interimResults = false; this._text = ''; this._handles = []; this._live = false; }
     async start() {
@@ -36,7 +38,7 @@ const Speech = {
   canListen: !!SR,
   canSpeak: !!NativeTTS || 'speechSynthesis' in window,
   // The Android recognizer and the recorder cannot share the microphone, so recordings there come from helper mode.
-  canRecordWhileListening: !NATIVE,
+  canRecordWhileListening: !SR || !nativePlugin('SpeechRecognition'),
   stop() {
     if (NativeTTS) NativeTTS.stop().catch(() => {});
     else if (window.speechSynthesis) speechSynthesis.cancel();
