@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>bitschool Reading</title>
+<meta name="description" content="bitschool Reading: a pixel reading app with a placement test, 80 small-step levels from A-1 to H-10, read-aloud checks and stories written by a local model.">
+<meta name="theme-color" content="#0b0b16">
+<link rel="icon" type="image/png" sizes="128x128" href="icons/apple-128.png">
+<link rel="apple-touch-icon" href="icons/apple-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <a class="logo" href="#/home" aria-label="bitschool home"><img src="icons/apple-128.png" width="128" height="128" alt="bitschool apple"></a>
+    <div class="brand"><b>bitschool</b><span>READING</span></div>
+    <div class="top-level" id="topLevel" aria-label="Current level"></div>
+    <a class="btn alt" id="homeBtn" href="#/home"><span>HOME</span></a>
+  </header>
+  <main id="view"></main>
+  <footer>bitschool — a 128bit family app · Stories written on this device</footer>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script src="js/icons.js"></script>
+<script src="js/levels.js"></script>
+<script src="js/passages.js"></script>
+<script src="js/store.js"></script>
+<script src="js/model.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/speech.js"></script>
+<script src="js/device.js"></script>
+<script src="js/tasks.js"></script>
+<script src="js/wordbank.js"></script>
+<script src="js/worksheets.js"></script>
+<script src="js/screens.js"></script>
+<script src="js/parent.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

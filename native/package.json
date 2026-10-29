@@ -1,0 +1,80 @@
+{
+  "name": "bitschool-reading",
+  "productName": "bitschool Reading",
+  "version": "1.2.0",
+  "description": "bitschool Reading: placement test, levels A-1 to H-10, read-aloud checks and local-model stories.",
+  "author": "128bit family",
+  "license": "UNLICENSED",
+  "private": true,
+  "main": "electron/main.js",
+  "scripts": {
+    "copy-web": "node scripts/copy-web.js",
+    "start": "npm run copy-web && electron .",
+    "exe": "npm run copy-web && npm run win-binaries && electron-builder --win --x64",
+    "apk": "npm run copy-web && npm run prepare-llama && cap sync android && cd android && ./gradlew assembleDebug",
+    "prepare-llama": "node scripts/prepare-llama.js",
+    "win-binaries": "npm install --no-save --force --os=win32 --cpu=x64 @node-llama-cpp/win-x64@3.22.2 @node-llama-cpp/win-x64-vulkan@3.22.2"
+  },
+  "build": {
+    "appId": "com.bitschool.reading",
+    "productName": "bitschool Reading",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "electron/**",
+      "www/**",
+      "package.json",
+      "!node_modules/node-llama-cpp/llama/gitRelease.bundle",
+      "!node_modules/@node-llama-cpp/linux-*/**",
+      "!node_modules/@node-llama-cpp/mac-*/**",
+      "!node_modules/@node-llama-cpp/win-x64-cuda*/**",
+      "!node_modules/@node-llama-cpp/win-arm64/**"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "bitschool-Reading-Setup-${version}.exe",
+      "shortcutName": "bitschool Reading"
+    },
+    "portable": {
+      "artifactName": "bitschool-Reading-${version}-portable.exe"
+    },
+    "publish": null,
+    "compression": "maximum",
+    "asarUnpack": [
+      "node_modules/node-llama-cpp/**",
+      "node_modules/@node-llama-cpp/**"
+    ]
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.6.0",
+    "electron": "^45.1.0",
+    "electron-builder": "^26.18.0"
+  },
+  "dependencies": {
+    "@capacitor-community/speech-recognition": "^7.0.1",
+    "@capacitor-community/text-to-speech": "^8.0.2",
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/core": "^8.6.0",
+    "@huggingface/jinja": "0.5.11",
+    "node-llama-cpp": "3.22.2"
+  }
+}

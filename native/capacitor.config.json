@@ -1,0 +1,7 @@
+{
+  "appId": "com.bitschool.reading",
+  "appName": "bitschool Reading",
+  "webDir": "www",
+  "server": { "androidScheme": "http", "cleartext": true },
+  "android": { "backgroundColor": "#0b0b16" }
+}
