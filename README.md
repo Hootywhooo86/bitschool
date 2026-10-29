@@ -36,6 +36,25 @@ Each story is checked before he sees it (length within range of the level target
 - A 7–8B model sometimes misses the target length or writes a weak question. The length check and retry catch most of it; use the sample-story preview when trying a new model.
 - Progress lives in this browser's storage. Use Export in Settings to back it up. Events (`reading.session`, `level.up`, `placement.done`) are queued for the shared family feed but not sent yet.
 
+### Windows .exe and Android .apk (`native/`)
+
+`native/` wraps the same `app/` folder: Electron for Windows, Capacitor for Android.
+
+- **Windows:** `bitschool-Reading-Setup-1.0.0.exe` installs it with a Start-menu shortcut; `bitschool-Reading-1.0.0-portable.exe` runs without installing. They are not code-signed, so Windows SmartScreen shows "Windows protected your PC" → **More info → Run anyway**. Windows has no speech recognition inside Electron, so reading uses grown-up helper mode (a grown-up taps missed words). Recordings, read-to-me voices and everything else work.
+- **Android:** `bitschool-Reading-1.0.0.apk` (Android 7+). Install it by opening the file on the phone and allowing "install unknown apps". It uses the phone's own speech recognizer, so the app follows along as he reads, and the phone's voice for "hear it". The recognizer and the recorder can't share the microphone, so in app-listens mode there's no recording; helper mode still records. This is a debug-signed build for sideloading; Play Store release needs a signing key.
+- **Story writer from a phone:** the model runs on a computer, not the phone. Start Ollama with `OLLAMA_HOST=0.0.0.0` and enter the computer's address (e.g. `http://192.168.1.20:11434`) in Grown-ups → Settings.
+
+To rebuild (Node 20+; the .exe also needs Wine on Linux/macOS; the .apk needs JDK 21 and the Android SDK with platform 36):
+
+```
+cd native
+npm install
+npm run exe   # → native/dist/*.exe
+npm run apk   # → native/android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+Run `npm start` to try the desktop version, and `node scripts/make-icons.js` (needs Playwright) after changing the apple to redraw the Android icons.
+
 ## Relationship to bitcalendar and 128bitlife
 
 bitcalendar is the family calendar (events, plans, reminders). bitschool is school-specific: timetables, assignments, grades. School deadlines can flow into bitcalendar, and homework quests pay XP into 128bitlife — school is one more quest source in the family game, not a separate silo.
@@ -57,5 +76,5 @@ bitcalendar is the family calendar (events, plans, reminders). bitschool is scho
 ## Status
 
 - Landing page + mock: live.
-- bitschool Reading (`app/`): working build: placement test, 80 levels, read-aloud, tasks, dashboard, local-model stories.
+- bitschool Reading (`app/`, plus Windows .exe and Android .apk from `native/`): working build: placement test, 80 levels, read-aloud, tasks, dashboard, local-model stories.
 - Real app build: not started. Formspree ID still needed in the waitlist form (`YOUR_FORM_ID` placeholder with a local-confirm fallback).

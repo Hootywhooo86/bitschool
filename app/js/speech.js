@@ -1,12 +1,59 @@
-const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+// In the Android app the phone's own recognizer and voice are used (the WebView has neither).
+// The Windows app has no speech recognition, so reading uses grown-up helper mode there.
+const NATIVE = window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform();
+const IN_ELECTRON = /Electron/.test(navigator.userAgent);
+const SR = NATIVE ? nativeRecognizer() : IN_ELECTRON ? null : (window.SpeechRecognition || window.webkitSpeechRecognition);
+const NativeTTS = NATIVE ? window.Capacitor.registerPlugin('TextToSpeech') : null;
 const NUMBERS = 'zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty'.split(' ');
+
+// Wraps the Android speech plugin in the same shape as the browser's SpeechRecognition.
+function nativeRecognizer() {
+  const plugin = window.Capacitor.registerPlugin('SpeechRecognition');
+  return class NativeRecognition {
+    constructor() { this.lang = 'en-US'; this.continuous = false; this.interimResults = false; this._text = ''; this._handles = []; this._live = false; }
+    async start() {
+      this._live = true; this._text = '';
+      try {
+        const perm = await plugin.requestPermissions();
+        if (perm.speechRecognition !== 'granted') return this._fail('not-allowed');
+        this._handles.push(await plugin.addListener('partialResults', d => { if (this._live) { this._text = (d.matches || [])[0] || this._text; this._emit(false); } }));
+        this._handles.push(await plugin.addListener('listeningState', d => { if (d.status === 'stopped') setTimeout(() => this._end(), 600); }));
+        await plugin.start({ language: this.lang, partialResults: true, popup: false, maxResults: 1 });
+        // The recognizer can stop on silence without an event; notice that too.
+        this._watch = setInterval(async () => { try { if (!(await plugin.isListening()).listening) setTimeout(() => this._end(), 600); } catch (e) {} }, 1500);
+      } catch (e) { this._fail(String((e && e.message) || e)); }
+    }
+    _emit(isFinal) { if (this.onresult) this.onresult({ results: [Object.assign([{ transcript: this._text }], { isFinal })] }); }
+    _end() { if (!this._live) return; this._live = false; if (this._text) this._emit(true); this._cleanup(); if (this.onend) this.onend(); }
+    _fail(error) { this._live = false; this._cleanup(); if (this.onerror) this.onerror({ error }); if (this.onend) this.onend(); }
+    _cleanup() { clearInterval(this._watch); this._handles.forEach(h => h.remove()); this._handles = []; }
+    stop() { plugin.stop().catch(() => {}); setTimeout(() => this._end(), 400); }
+    abort() { this._live = false; this._cleanup(); plugin.stop().catch(() => {}); }
+  };
+}
 
 const Speech = {
   canListen: !!SR,
-  canSpeak: 'speechSynthesis' in window,
+  canSpeak: !!NativeTTS || 'speechSynthesis' in window,
+  // The Android recognizer and the recorder cannot share the microphone, so recordings there come from helper mode.
+  canRecordWhileListening: !NATIVE,
+  stop() {
+    if (NativeTTS) NativeTTS.stop().catch(() => {});
+    else if (window.speechSynthesis) speechSynthesis.cancel();
+  },
   say(text, { rate = 0.9, onboundary, onend } = {}) {
     if (!this.canSpeak) { toast('This device cannot read aloud'); return; }
-    speechSynthesis.cancel();
+    this.stop();
+    if (NativeTTS) {
+      let h;
+      (async () => {
+        if (onboundary) h = await NativeTTS.addListener('onRangeStart', r => onboundary({ charIndex: r.start }));
+        try { await NativeTTS.speak({ text, lang: 'en-US', rate, category: 'playback' }); } catch (e) {}
+        if (h) h.remove();
+        if (onend) onend();
+      })();
+      return;
+    }
     const u = new SpeechSynthesisUtterance(text);
     u.rate = rate; u.lang = 'en-US';
     if (onboundary) u.onboundary = onboundary;
@@ -157,8 +204,8 @@ function mountReader(el, passage, { onDone, nextLabel = 'NEXT ▶' }) {
     recog._finals = [];
     recog.onresult = onResult;
     recog.onerror = e => {
-      if (e.error === 'not-allowed' || e.error === 'service-not-allowed' || e.error === 'audio-capture') {
-        toast('Microphone blocked — switching to grown-up helper mode');
+      if (['not-allowed', 'service-not-allowed', 'audio-capture', 'network'].includes(e.error)) {
+        toast(e.error === 'network' ? 'Listening needs the internet here — switching to grown-up helper mode' : 'Microphone blocked — switching to grown-up helper mode');
         mode = 'helper'; paintMode(); paint();
       }
     };
@@ -172,14 +219,14 @@ function mountReader(el, passage, { onDone, nextLabel = 'NEXT ▶' }) {
 
   async function start() {
     if (running) return;
-    speechSynthesis && speechSynthesis.cancel();
+    Speech.stop();
     running = true; finished = false; t0 = Date.now(); firstHeard = lastHeard = 0;
     doneHeard = []; sessionHeard = []; helperMissed.clear(); state = { status: toks.map(() => 'unread'), p: 0 };
     $('.read-result', el).classList.add('hidden');
     btn('start').classList.add('hidden'); btn('listen').classList.add('hidden'); btn('mode').classList.add('hidden');
     btn('done').classList.remove('hidden');
     paintMode(); paint();
-    recorder = await startRecorder();
+    recorder = mode === 'mic' && !Speech.canRecordWhileListening ? null : await startRecorder();
     if (mode === 'mic') startRecog();
     timer = setInterval(tick, 500);
   }

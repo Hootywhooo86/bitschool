@@ -8,7 +8,7 @@ function updateTop() {
 
 function route() {
   leave();
-  if (window.speechSynthesis) speechSynthesis.cancel();
+  Speech.stop();
   $$('.overlay').forEach(o => o.remove());
   const name = location.hash.replace(/^#\/?/, '') || 'home';
   (ROUTES[name] || screenHome)();

@@ -23,7 +23,7 @@ function modal(html) {
   m.className = 'overlay';
   m.innerHTML = `<div class="modal">${html}</div>`;
   document.body.appendChild(m);
-  const close = () => { m.remove(); window.speechSynthesis && speechSynthesis.cancel(); };
+  const close = () => { m.remove(); Speech.stop(); };
   m.addEventListener('click', e => { if (e.target === m) close(); });
   onLeave(close);
   return { el: m, close };
