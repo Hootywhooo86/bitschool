@@ -20,31 +20,40 @@ A reading-only app in the same pixel family style. Open `app/index.html` (or htt
 - **Colors:** six themes, or your own six colors (background, panels, buttons, highlights, text, apple), plus story text size.
 - **Size rule:** the logo is a 128px pixel apple; every button, tile and icon is 128px or larger.
 
-### Stories from a local model (Qwen)
+### Stories from a model on the device (Qwen)
 
-Stories, open-answer checking and word meanings come from a model running on your own computer. Nothing goes to the internet.
+Stories, open-answer checking and word meanings come from an AI model that runs on your own device. Nothing goes to the internet except the one-time model download.
 
-1. Install [Ollama](https://ollama.com) and run `ollama pull qwen3:8b` (or `qwen2.5:7b` on a smaller machine).
-2. Let the page reach it: start Ollama with `OLLAMA_ORIGINS=*` (Mac: `launchctl setenv OLLAMA_ORIGINS "*"`, then restart Ollama). For a tablet on the same Wi-Fi, also set `OLLAMA_HOST=0.0.0.0` and put the computer's address (e.g. `http://192.168.1.20:11434`) in Grown-ups → Settings.
-3. Grown-ups → Settings → **SAVE & TEST**, then **WRITE A SAMPLE STORY** to check the level fits.
+**In the Android and Windows apps:** Grown-ups → Settings → Story writer → **On this device**, then **Download** a model. It downloads from Hugging Face with a progress bar (stop and resume work), checks free space and memory, and starts writing stories for the current level. The app marks the one that fits the device:
 
-Each story is checked before he sees it (length within range of the level target, real questions, answer order shuffled). The app writes the next stories in the background. LM Studio and llama.cpp work too (choose "OpenAI-compatible"). Add a vision model such as `qwen2.5vl:7b` to have handwritten answers read; without one, they wait in **Check answers** for a grown-up. With the model off, the 16 built-in stories (two per letter, all original) are used.
+| Model | Download | Memory | Best for |
+|---|---|---|---|
+| **Qwen3.5 2B** | 1.3 GB | about 4 GB | Phones and tablets |
+| **Qwen3.5 4B** | 2.7 GB | about 8 GB | Windows PCs and tablets with 8 GB or more; noticeably better stories |
+
+Why these: on the app's own prompt and checks at three levels (A-5, C-5, F-5), Qwen3.5 2B and 4B wrote usable stories at the right reading level. Gemma 4 E2B wrote smoother prose but pitched a 4th-grade story at grade 9 and is a 3.1 GB download; Gemma 3 1B broke the format (once writing questions in Spanish); Qwen3.5 0.8B wrote answer keys that contradicted its own stories.
+
+On a 4-core test machine (no GPU) a story took about 1–1.5 minutes with the 2B and 1.5–3 minutes with the 4B. The app writes the next stories in the background, so a child usually doesn't wait. Windows uses the graphics card through Vulkan when it can.
+
+**From a website browser, or to use a bigger model:** choose **On a computer (Ollama)**. Install [Ollama](https://ollama.com), run `ollama pull qwen3.5:4b` (or `qwen3.5:9b`), start it with `OLLAMA_ORIGINS=*`, and for a phone on the same Wi-Fi also `OLLAMA_HOST=0.0.0.0` with the computer's address (e.g. `http://192.168.1.20:11434`) in Settings. LM Studio and llama.cpp work too (choose "OpenAI-compatible"). A vision model can read handwritten answers; without one they wait in **Check answers** for a grown-up.
+
+Every story is checked before he sees it: the right length, a reading level not far above his level (Flesch-Kincaid), real questions whose answers are in the passage, vocabulary words that appear in the story, and nothing copied from the instructions. A story that fails is rewritten once; after that the 16 built-in stories (two per letter, all original) are used.
 
 ### Known limits
 
 - Speech recognition in Chrome and Edge goes through the browser maker's servers, and it is less accurate with young voices. Helper mode, and the recordings, are the backup. A fully offline option would be whisper.cpp behind the same local server.
-- A 7–8B model sometimes misses the target length or writes a weak question. The length check and retry catch most of it; use the sample-story preview when trying a new model.
+- Small models still slip sometimes (a detail that doesn't fit, a weak question). The checks and retry catch length, level and format problems, not every odd sentence; use **Write a sample story** in Settings to see what a model writes.
 - Progress lives in this browser's storage. Use Export in Settings to back it up. Events (`reading.session`, `level.up`, `placement.done`) are queued for the shared family feed but not sent yet.
 
 ### Windows .exe and Android .apk (`native/`)
 
 `native/` wraps the same `app/` folder: Electron for Windows, Capacitor for Android.
 
-- **Windows:** `bitschool-Reading-Setup-1.0.1.exe` installs it with a Start-menu shortcut; `bitschool-Reading-1.0.1-portable.exe` runs without installing. They are not code-signed, so Windows SmartScreen shows "Windows protected your PC" → **More info → Run anyway**. Windows has no speech recognition inside Electron, so reading uses grown-up helper mode (a grown-up taps missed words). Recordings, read-to-me voices and everything else work.
-- **Android:** `bitschool-Reading-1.0.1.apk` (Android 7+). Install it by opening the file on the phone and allowing "install unknown apps". It uses the phone's own speech recognizer, so the app follows along as he reads, and the phone's voice for "hear it". The recognizer and the recorder can't share the microphone, so in app-listens mode there's no recording; helper mode still records. This is a debug-signed build for sideloading; Play Store release needs a signing key.
-- **Story writer from a phone:** the model runs on a computer, not the phone. Start Ollama with `OLLAMA_HOST=0.0.0.0` and enter the computer's address (e.g. `http://192.168.1.20:11434`) in Grown-ups → Settings.
+- **Windows:** `bitschool-Reading-Setup-1.1.0.exe` installs it with a Start-menu shortcut; `bitschool-Reading-1.1.0-portable.exe` runs without installing. They are not code-signed, so Windows SmartScreen shows "Windows protected your PC" → **More info → Run anyway**. Windows has no speech recognition inside Electron, so reading uses grown-up helper mode (a grown-up taps missed words). Recordings, read-to-me voices and everything else work.
+- **Android:** `bitschool-Reading-1.1.0.apk` (Android 7+, 64-bit phones and tablets — nearly every one made since 2017). Install it by opening the file on the phone and allowing "install unknown apps". It uses the phone's own speech recognizer, so the app follows along as he reads, and the phone's voice for "hear it". The recognizer and the recorder can't share the microphone, so in app-listens mode there's no recording; helper mode still records. This is a debug-signed build for sideloading; Play Store release needs a signing key.
+- **On-device story writer:** Android runs llama.cpp through a small Capacitor plugin (`android/app/src/main/cpp`, `LocalLlmPlugin.java`), built for 64-bit ARM with a CPU variant picked per phone. Windows runs node-llama-cpp in the Electron main process (`electron/llm.js`) with CPU and Vulkan builds. Both render the model's own chat template with thinking off and force the story's JSON shape with a grammar.
 
-To rebuild (Node 20+; the .exe also needs Wine on Linux/macOS; the .apk needs JDK 21 and the Android SDK with platform 36):
+To rebuild (Node 20+; the .exe also needs Wine on Linux/macOS; the .apk needs JDK 21, git, and the Android SDK with platform 36, NDK 28.2 and CMake 3.31). The Android build compiles the llama.cpp source that ships inside the node-llama-cpp npm package; `npm run apk` unpacks it to `native/.llama.cpp` (not committed):
 
 ```
 cd native
