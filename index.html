@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>bitschool — School, but chunkier.</title>
 <meta name="description" content="bitschool is the 128bit family's pixel school app: timetables, homework quests, grades and streaks, all in chunky pixel style. Coming soon.">
+<link rel="icon" type="image/png" sizes="128x128" href="app/icons/apple-128.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
@@ -26,7 +27,8 @@
   .wrap{max-width:960px;margin:0 auto;padding:0 20px;position:relative;z-index:1}
   nav{display:flex;justify-content:space-between;align-items:center;padding:22px 0}
   .logo{display:flex;align-items:center;gap:12px;font-family:'Press Start 2P',monospace;font-size:15px}
-  .logo-mark{width:34px;height:34px;background:var(--chalk);display:grid;place-items:center;font-size:18px;box-shadow:0 4px 0 var(--chalk-deep), 4px 0 0 var(--chalk-deep), -4px 0 0 var(--chalk-deep), 0 -4px 0 var(--chalk-deep);image-rendering:pixelated}
+  .logo-mark{width:128px;height:128px;display:block;image-rendering:pixelated}
+  .cta{display:inline-flex;align-items:center;justify-content:center;min-height:128px;min-width:128px;padding:0 28px;font-family:'Press Start 2P',monospace;font-size:13px;color:#0b0b16;background:var(--chalk);box-shadow:0 6px 0 var(--chalk-deep);text-decoration:none;margin-bottom:26px}
   .badge{font-family:'Press Start 2P',monospace;font-size:9px;color:var(--bg);background:var(--yellow);padding:8px 10px;letter-spacing:1px;box-shadow:0 4px 0 #a16207}
   header{text-align:center;padding:52px 0 30px}
   .eyebrow{font-family:'Press Start 2P',monospace;font-size:10px;color:var(--chalk);letter-spacing:2px;margin-bottom:26px}
@@ -85,15 +87,17 @@
 <body>
 <div class="wrap">
   <nav>
-    <div class="logo"><span class="logo-mark">🎒</span> bitschool</div>
-    <span class="badge">COMING SOON</span>
+    <div class="logo"><img class="logo-mark" src="app/icons/apple-128.png" width="128" height="128" alt="bitschool apple"> bitschool</div>
+    <span class="badge">READING APP: LIVE</span>
   </nav>
 
   <header>
     <div class="eyebrow">PART OF THE 128BIT FAMILY</div>
     <h1>School, but <span class="g">chunkier</span>.</h1>
     <p class="sub">A pixel school app that turns the school day into a game: chunky timetables, homework quests, grades at a glance, and streaks for showing up.</p>
-    <div class="try">▼ TRY THE MOCK BELOW — TAP HOMEWORK DONE, WATCH THE QUEST BAR MOVE ▼</div>
+    <p class="sub">New: <b>bitschool Reading</b> — a placement test, 80 small-step levels from A-1 to H-10, read-aloud checks, and stories written for his level by a local model.</p>
+    <a class="cta" href="app/">OPEN BITSCHOOL READING ▶</a>
+    <div class="try">▼ OR TRY THE SCHOOL-DAY MOCK BELOW — TAP HOMEWORK DONE, WATCH THE QUEST BAR MOVE ▼</div>
   </header>
 
   <section class="school">

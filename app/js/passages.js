@@ -202,7 +202,7 @@ function preparePassage(p) {
   const candidates = [];
   p.sentences.forEach((s, si) => words(s).forEach((w, wi) => {
     const n = norm(w);
-    if (n.length >= 4 && !STOPWORDS.has(n) && !/^[A-Z]/.test(w.replace(/^["“']/, '')) && /^[a-z]+$/.test(n))
+    if (n.length >= (p.level < 10 ? 3 : 4) && !STOPWORDS.has(n) && !/^[A-Z]/.test(w.replace(/^["“']/, '')) && /^[a-z]+$/.test(n))
       candidates.push({ si, wi, n, score: (vocabKeys.includes(n) ? 10 : 0) + n.length + Math.random() * 3 });
   }));
   candidates.sort((a, b) => b.score - a.score);

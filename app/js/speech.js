@@ -204,7 +204,7 @@ function mountReader(el, passage, { onDone, nextLabel = 'NEXT ▶' }) {
     const read = status.filter(s => s === 'read').length, stumble = status.filter(s => s === 'stumble').length;
     const accuracy = Math.round((read + stumble * 0.5) / toks.length * 100);
     const minutes = mode === 'mic' && firstHeard ? Math.max((lastHeard || end) - firstHeard, 1000) / 60000 : (end - t0) / 60000;
-    const wpm = Math.round((read + stumble) / minutes);
+    const wpm = Math.min(300, Math.round((read + stumble) / Math.max(minutes, 5 / 60))); // a tap on DONE right away is not a reading speed
     const missed = [...new Set(status.map((s, i) => s !== 'read' ? toks[i].raw.replace(/^[^A-Za-z0-9]+|[^A-Za-z0-9]+$/g, '') : null).filter(Boolean))];
     let recId = null;
     if (recorder) {
