@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>bitschool — School, but chunkier.</title>
+<meta name="description" content="bitschool is the 128bit family's pixel school app: timetables, homework quests, grades and streaks, all in chunky pixel style. Coming soon.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0b0b16;
+    --panel:#141428;
+    --chalk:#22c55e;
+    --chalk-deep:#15803d;
+    --yellow:#facc15;
+    --orange:#ff9f1c;
+    --red:#ff5d5d;
+    --ink:#f4f1ff;
+    --muted:#9a97b8;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font-family:'Inter',system-ui,sans-serif;overflow-x:hidden}
+  body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;background-image:radial-gradient(rgba(34,197,94,.08) 1px, transparent 1px);background-size:22px 22px}
+  .wrap{max-width:960px;margin:0 auto;padding:0 20px;position:relative;z-index:1}
+  nav{display:flex;justify-content:space-between;align-items:center;padding:22px 0}
+  .logo{display:flex;align-items:center;gap:12px;font-family:'Press Start 2P',monospace;font-size:15px}
+  .logo-mark{width:34px;height:34px;background:var(--chalk);display:grid;place-items:center;font-size:18px;box-shadow:0 4px 0 var(--chalk-deep), 4px 0 0 var(--chalk-deep), -4px 0 0 var(--chalk-deep), 0 -4px 0 var(--chalk-deep);image-rendering:pixelated}
+  .badge{font-family:'Press Start 2P',monospace;font-size:9px;color:var(--bg);background:var(--yellow);padding:8px 10px;letter-spacing:1px;box-shadow:0 4px 0 #a16207}
+  header{text-align:center;padding:52px 0 30px}
+  .eyebrow{font-family:'Press Start 2P',monospace;font-size:10px;color:var(--chalk);letter-spacing:2px;margin-bottom:26px}
+  h1{font-family:'Press Start 2P',monospace;font-size:clamp(22px,5.5vw,44px);line-height:1.35;margin-bottom:24px;text-shadow:0 4px 0 #1a1a33, 4px 0 0 #1a1a33}
+  h1 .g{color:var(--chalk)} h1 .y{color:var(--yellow)}
+  .sub{color:var(--muted);font-size:18px;max-width:620px;margin:0 auto 20px;line-height:1.6}
+  .try{font-family:'Press Start 2P',monospace;font-size:9px;color:var(--chalk);letter-spacing:1px;margin-bottom:26px}
+  /* ---------- school app ---------- */
+  .school{display:flex;gap:0;background:var(--panel);border:3px solid #2a2a4a;box-shadow:8px 8px 0 #000;margin-bottom:36px;min-height:420px}
+  .days{width:150px;flex-shrink:0;border-right:3px solid #2a2a4a;padding:16px}
+  .days button{display:block;width:100%;text-align:left;background:none;border:none;color:var(--muted);font-family:'Press Start 2P',monospace;font-size:9px;padding:10px 6px;cursor:pointer}
+  .days button.active{color:var(--ink);background:#1f1f3a}
+  .days .today{color:var(--yellow);font-size:8px}
+  .main{flex:1;padding:18px;min-width:0}
+  .main h3{font-family:'Press Start 2P',monospace;font-size:11px;color:var(--chalk);margin-bottom:14px}
+  .class{display:flex;gap:12px;padding:12px 0;border-bottom:2px solid #2a2a4a;align-items:center}
+  .class .time{font-family:'Press Start 2P',monospace;font-size:9px;color:var(--yellow);width:74px;flex-shrink:0}
+  .class .meta{flex:1;min-width:0}
+  .class .name{font-weight:800;font-size:14px}
+  .class .room{font-size:12px;color:var(--muted)}
+  .class .tag{font-family:'Press Start 2P',monospace;font-size:8px;padding:6px 8px;background:#1f1f3a;color:var(--ink);flex-shrink:0}
+  .hw{margin-top:18px}
+  .task{display:flex;gap:12px;padding:12px 0;border-bottom:2px solid #2a2a4a;cursor:pointer;align-items:flex-start}
+  .task:hover{background:#1a1a33}
+  .task .box{width:22px;height:22px;border:3px solid #2a2a4a;flex-shrink:0;display:grid;place-items:center;font-size:14px}
+  .task.done .box{background:var(--chalk);border-color:var(--chalk-deep);color:#0b0b16}
+  .task.done .t{color:var(--muted);text-decoration:line-through}
+  .task .t{font-size:14px;font-weight:600}
+  .task .d{font-size:12px;color:var(--muted)}
+  .task .xp{font-family:'Press Start 2P',monospace;font-size:8px;color:var(--yellow);flex-shrink:0}
+  .side{width:250px;flex-shrink:0;border-left:3px solid #2a2a4a;padding:18px}
+  .side h3{font-family:'Press Start 2P',monospace;font-size:11px;color:var(--chalk);margin-bottom:14px}
+  .grade{display:flex;justify-content:space-between;padding:10px 0;border-bottom:2px solid #2a2a4a;font-size:14px}
+  .grade b{color:var(--yellow)}
+  .quest{margin-top:16px;background:#1f1f3a;padding:12px;font-size:13px;line-height:1.6}
+  .quest b{color:var(--chalk)}
+  .quest .bar{height:10px;background:#0b0b16;margin-top:8px}
+  .quest .bar i{display:block;height:100%;background:var(--chalk);width:0%;transition:width .3s}
+  /* ---------- features ---------- */
+  .features{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:18px;padding:10px 0 36px}
+  .feat{background:var(--panel);border:3px solid #2a2a4a;padding:20px}
+  .feat h3{font-family:'Press Start 2P',monospace;font-size:11px;margin-bottom:10px;color:var(--chalk)}
+  .feat p{color:var(--muted);font-size:14px;line-height:1.6}
+  .waitlist{background:var(--panel);border:3px solid #2a2a4a;padding:28px;text-align:center;margin-bottom:40px}
+  .waitlist h2{font-family:'Press Start 2P',monospace;font-size:14px;margin-bottom:16px}
+  .waitlist form{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+  .waitlist input{padding:12px 14px;background:#0b0b16;border:3px solid #2a2a4a;color:var(--ink);font-size:14px;min-width:240px}
+  .waitlist button{font-family:'Press Start 2P',monospace;font-size:10px;padding:12px 18px;background:var(--chalk);color:#0b0b16;border:none;cursor:pointer;box-shadow:0 4px 0 var(--chalk-deep)}
+  .waitlist .note{color:var(--muted);font-size:13px;margin-top:12px}
+  footer{text-align:center;color:var(--muted);font-size:13px;padding:20px 0 40px}
+  .toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(80px);background:var(--chalk);color:#0b0b16;font-family:'Press Start 2P',monospace;font-size:11px;padding:14px 20px;box-shadow:0 4px 0 var(--chalk-deep);transition:transform .3s;z-index:30}
+  .toast.show{transform:translateX(-50%) translateY(0)}
+  @media (max-width:700px){ .school{flex-direction:column} .days{width:auto;border-right:none;border-bottom:3px solid #2a2a4a} .side{width:auto;border-left:none;border-top:3px solid #2a2a4a} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav>
+    <div class="logo"><span class="logo-mark">🎒</span> bitschool</div>
+    <span class="badge">COMING SOON</span>
+  </nav>
+
+  <header>
+    <div class="eyebrow">PART OF THE 128BIT FAMILY</div>
+    <h1>School, but <span class="g">chunkier</span>.</h1>
+    <p class="sub">A pixel school app that turns the school day into a game: chunky timetables, homework quests, grades at a glance, and streaks for showing up.</p>
+    <div class="try">▼ TRY THE MOCK BELOW — TAP HOMEWORK DONE, WATCH THE QUEST BAR MOVE ▼</div>
+  </header>
+
+  <section class="school">
+    <div class="days">
+      <button data-day="Mon">MON</button>
+      <button data-day="Tue">TUE</button>
+      <button data-day="Wed">WED</button>
+      <button class="active" data-day="Thu">THU <span class="today">● TODAY</span></button>
+      <button data-day="Fri">FRI</button>
+    </div>
+    <div class="main">
+      <h3>📅 <span id="dayTitle">THURSDAY</span> — TIMETABLE</h3>
+      <div id="classList"></div>
+      <div class="hw">
+        <h3>📝 HOMEWORK QUESTS</h3>
+        <div id="taskList"></div>
+      </div>
+    </div>
+    <div class="side">
+      <h3>📊 GRADES</h3>
+      <div class="grade"><span>📐 Math</span><b>87%</b></div>
+      <div class="grade"><span>📖 English</span><b>91%</b></div>
+      <div class="grade"><span>🔬 Science</span><b>84%</b></div>
+      <div class="grade"><span>🌍 Social</span><b>89%</b></div>
+      <div class="quest">
+        <b>QUEST: HOMEWORK HERO</b><br>
+        Finish 3 assignments to earn +25 XP.
+        <div class="bar"><i id="questbar"></i></div>
+        <span id="questtext">0 / 3 done</span>
+        <div style="margin-top:8px">🔥 Streak: <b>6 days</b></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="features">
+    <div class="feat"><h3>📅 CHUNKY TIMETABLE</h3><p>Your whole school day at a glance — classes, rooms, and what's next, in big readable blocks.</p></div>
+    <div class="feat"><h3>🎮 HOMEWORK QUESTS</h3><p>Assignments become quests that pay XP into 128bitlife. Streaks for consecutive done days.</p></div>
+    <div class="feat"><h3>📊 GRADES AT A GLANCE</h3><p>No digging through portals — grades, trends, and what's due, right on the home screen.</p></div>
+    <div class="feat"><h3>👨‍👩‍👧 FAMILY VIEW</h3><p>Parents see the same feed: what's due, what's done, and the streak — on the family timeline.</p></div>
+  </section>
+
+  <section class="waitlist">
+    <h2>JOIN THE WAITLIST</h2>
+    <form id="waitlistForm">
+      <input type="email" placeholder="you@email.com" required>
+      <button type="submit">SIGN ME UP</button>
+    </form>
+    <p class="note" id="waitlistNote">Be first to know when bitschool launches.</p>
+  </section>
+
+  <footer>bitschool — a 128bit family app · Built with pixels, not promises.</footer>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+  const days = {
+    Mon: [{t:'9:00', n:'Math', r:'Room 204', tag:'TEST FRI'}, {t:'10:30', n:'English', r:'Room 112', tag:''}, {t:'1:00', n:'Science Lab', r:'Lab 3', tag:'LAB'}],
+    Tue: [{t:'9:00', n:'Social Studies', r:'Room 118', tag:''}, {t:'10:30', n:'Math', r:'Room 204', tag:''}, {t:'1:00', n:'Gym', r:'Gymnasium', tag:'KIT'}],
+    Wed: [{t:'9:00', n:'English', r:'Room 112', tag:''}, {t:'10:30', n:'Science', r:'Lab 3', tag:''}, {t:'1:00', n:'Art', r:'Studio B', tag:'SMOCK'}],
+    Thu: [{t:'9:00', n:'Math', r:'Room 204', tag:''}, {t:'10:30', n:'English', r:'Room 112', tag:'ESSAY DUE'}, {t:'1:00', n:'Science', r:'Lab 3', tag:''}, {t:'2:30', n:'Social Studies', r:'Room 118', tag:''}],
+    Fri: [{t:'9:00', n:'Gym', r:'Gymnasium', tag:'KIT'}, {t:'10:30', n:'Math', r:'Room 204', tag:'QUIZ'}, {t:'1:00', n:'English', r:'Room 112', tag:''}],
+  };
+  const tasks = [
+    {t:'Math worksheet ch. 7', d:'Due Friday · 20 problems', xp:10, done:false},
+    {t:'English essay draft', d:'Due Thursday · 500 words', xp:15, done:false},
+    {t:'Science lab report', d:'Due Monday · Lab 3 notes', xp:15, done:false},
+  ];
+  let done = 0;
+  const toastEl = document.getElementById('toast');
+  let toastTimer;
+  function toast(msg){ toastEl.textContent = msg; toastEl.classList.add('show'); clearTimeout(toastTimer); toastTimer = setTimeout(()=>toastEl.classList.remove('show'), 2200); }
+  function renderClasses(day){
+    document.getElementById('dayTitle').textContent = {Mon:'MONDAY', Tue:'TUESDAY', Wed:'WEDNESDAY', Thu:'THURSDAY', Fri:'FRIDAY'}[day];
+    document.getElementById('classList').innerHTML = days[day].map(c =>
+      '<div class="class"><span class="time">' + c.t + '</span><div class="meta"><div class="name">' + c.n + '</div><div class="room">' + c.r + '</div></div>' + (c.tag ? '<span class="tag">' + c.tag + '</span>' : '') + '</div>').join('');
+  }
+  function renderTasks(){
+    document.getElementById('taskList').innerHTML = '';
+    tasks.forEach((task, i) => {
+      const d = document.createElement('div');
+      d.className = 'task' + (task.done ? ' done' : '');
+      d.innerHTML = '<span class="box">' + (task.done ? '✓' : '') + '</span><div style="flex:1"><div class="t">' + task.t + '</div><div class="d">' + task.d + '</div></div><span class="xp">+' + task.xp + ' XP</span>';
+      d.addEventListener('click', () => {
+        task.done = !task.done;
+        done += task.done ? 1 : -1;
+        document.getElementById('questbar').style.width = Math.min(done / 3 * 100, 100) + '%';
+        document.getElementById('questtext').textContent = Math.max(done, 0) + ' / 3 done';
+        if (task.done) toast('+' + task.xp + ' XP — ASSIGNMENT DONE');
+        if (done === 3) toast('QUEST COMPLETE! +25 XP — HOMEWORK HERO');
+        renderTasks();
+      });
+      document.getElementById('taskList').appendChild(d);
+    });
+  }
+  document.querySelectorAll('.days button').forEach(b => b.addEventListener('click', () => {
+    document.querySelectorAll('.days button').forEach(x => x.classList.remove('active'));
+    b.classList.add('active'); renderClasses(b.dataset.day);
+  }));
+  document.getElementById('waitlistForm').addEventListener('submit', e => { e.preventDefault(); document.getElementById('waitlistNote').textContent = 'You are on the list. +10 XP for joining early.'; toast('+10 XP — WAITLIST JOINED'); e.target.reset(); });
+  renderClasses('Thu'); renderTasks();
+</script>
+</body>
+</html>
