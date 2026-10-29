@@ -7,7 +7,7 @@ const path = require('path');
 const { Readable } = require('stream');
 const { pipeline } = require('stream/promises');
 
-let lib, llama, model, context, loadedFile = null, genAbort = null, dlAbort = null;
+let lib, jinja, llama, model, context, sequence, loadedFile = null, genAbort = null, dlAbort = null;
 
 const dir = () => { const d = path.join(app.getPath('userData'), 'models'); fs.mkdirSync(d, { recursive: true }); return d; };
 // Only plain file names: models live in one folder.
@@ -15,11 +15,13 @@ const modelPath = f => (/^[A-Za-z0-9._-]+\.gguf$/.test(f || '') ? path.join(dir(
 
 async function engine() {
   lib = lib || await import('node-llama-cpp');
+  jinja = jinja || await import('@huggingface/jinja');
   llama = llama || await lib.getLlama({ gpu: 'auto' });
   return lib;
 }
 
 async function unload() {
+  sequence = null;
   if (context) { await context.dispose(); context = null; }
   if (model) { await model.dispose(); model = null; }
   loadedFile = null;
@@ -73,29 +75,37 @@ const handlers = {
     await engine();
     model = await llama.loadModel({ modelPath: p });
     context = await model.createContext({ contextSize: nCtx });
+    sequence = context.getSequence();
     loadedFile = file;
   },
 
   async generate(e, { system, user, schema, maxTokens = 1500, temperature = 0.7 }) {
     if (!model) throw new Error('No model loaded');
-    const { LlamaChatSession, JinjaTemplateChatWrapper } = await engine();
-    // The model's own chat template, with thinking turned off (Qwen3.5 would otherwise reason first).
-    const template = model.fileInfo.metadata && model.fileInfo.metadata.tokenizer && model.fileInfo.metadata.tokenizer.chat_template;
-    const chatWrapper = template ? new JinjaTemplateChatWrapper({ template, additionalRenderParameters: { enable_thinking: false } }) : undefined;
-    const sequence = context.getSequence();
-    const session = new LlamaChatSession({ contextSequence: sequence, systemPrompt: system, chatWrapper });
+    const { LlamaCompletion } = await engine();
+    // The model's own chat template rendered the way llama.cpp does, with thinking turned off
+    // (Qwen3.5 would otherwise reason first).
+    const template = model.fileInfo.metadata.tokenizer.chat_template;
+    const prompt = template
+      ? new jinja.Template(template).render({
+          messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
+          add_generation_prompt: true, enable_thinking: false,
+          bos_token: model.tokens.bosString || '', eos_token: model.tokens.eosString || '',
+        })
+      : system + '\n\n' + user + '\n\n';
     const grammar = schema ? await llama.createGrammarForJsonSchema(JSON.parse(schema)) : undefined;
+    await sequence.clearHistory();
+    const completion = new LlamaCompletion({ contextSequence: sequence });
     genAbort = new AbortController();
     let n = 0;
     try {
-      const text = await session.prompt(user, {
+      const text = await completion.generateCompletion(model.tokenize(prompt, true), {
         grammar, maxTokens, temperature, topK: 20, topP: 0.8,
         repeatPenalty: { lastTokens: 256, penalty: 1, presencePenalty: 1.5 },
         signal: genAbort.signal, stopOnAbortSignal: true,
         onTextChunk: () => { if (++n % 8 === 0) e.sender.send('llm-event', { event: 'progress', data: { tokens: n } }); },
       });
       return { text };
-    } finally { session.dispose(); sequence.dispose(); }
+    } finally { completion.dispose({ disposeSequence: false }); }
   },
 
   async stop() { if (genAbort) genAbort.abort(); },
