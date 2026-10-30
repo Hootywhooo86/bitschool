@@ -1,4 +1,4 @@
-const ROUTES = { home: screenHome, placement: screenPlacement, lesson: screenSheet, review: screenReview, parent: screenParent, colors: screenColors };
+const ROUTES = { home: screenHome, placement: screenPlacement, lesson: screenSheet, practice: screenPractice, review: screenReview, parent: screenParent, colors: screenColors };
 
 function updateTop() {
   const s = Store.state;

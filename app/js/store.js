@@ -20,11 +20,11 @@ const Store = {
       child: { name: '' },
       placed: false, level: 0, booklet: null,
       settings: {
-        passMark: 85, sheetsPerBooklet: 6, storyIdeas: [], ownIdeas: true, allowSkipRead: false, readSize: 30,
+        passMark: 85, sheetsPerBooklet: 6, dailyGoal: 2, storyIdeas: [], ownIdeas: true, allowSkipRead: false, readSize: 30,
         theme: { ...THEMES.chalkboard }, themeName: 'chalkboard',
         model: { endpoint: 'http://localhost:11434', api: Device.available() ? 'device' : 'ollama', name: 'qwen3:8b', vision: '', device: '' },
       },
-      sessions: [], storyPicks: [], words: {}, cache: {}, usedBuiltins: [], pending: [], history: [], outbox: [], placements: [],
+      sessions: [], storyPicks: [], days: {}, words: {}, cache: {}, usedBuiltins: [], pending: [], history: [], outbox: [], placements: [],
     };
   },
   load() {
@@ -67,6 +67,32 @@ const Store = {
     return Object.entries(this.state.words).filter(([, w]) => w.box < REVIEW_DAYS.length && w.due <= now)
       .sort((a, b) => (b[1].misses + b[1].looked) - (a[1].misses + a[1].looked)).slice(0, n).map(([k, w]) => ({ k, ...w }));
   },
+  // Daily goal: every finished sheet (booklet or practice) counts toward today's goal.
+  dayKey(t = Date.now()) {
+    const d = new Date(t);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  },
+  today() { return this.state.days[this.dayKey()] || { sheets: 0, seconds: 0 }; },
+  // A past day keeps the goal it was played under, so changing the goal never erases earned days.
+  goalMet(key) {
+    const d = this.state.days[key];
+    if (!d) return false;
+    return d.sheets >= (key === this.dayKey() || !d.goal ? this.state.settings.dailyGoal : d.goal);
+  },
+  // Days in a row with the goal met, counting today only once it is met.
+  streak() {
+    let n = 0, t = Date.now();
+    if (!this.goalMet(this.dayKey(t))) t -= DAY;
+    while (this.goalMet(this.dayKey(t))) { n++; t -= DAY; }
+    return n;
+  },
+  // Returns true when this sheet is the one that meets today's goal.
+  logSheet(seconds) {
+    const k = this.dayKey(), d = this.state.days[k] || (this.state.days[k] = { sheets: 0, seconds: 0 });
+    d.sheets++; d.seconds += seconds || 0; d.goal = this.state.settings.dailyGoal;
+    return d.sheets === this.state.settings.dailyGoal;
+  },
+
   // The 128bit family feed: queued here until the app signs in to the shared feed.
   event(type, data) {
     this.state.outbox.push({ app: 'bitschool', type, at: Date.now(), data });

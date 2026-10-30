@@ -74,7 +74,7 @@ const GENERATORS = {
     return ex;
   } },
   capitals: { bands: [1, 3], make(level) {
-    const s = pick(bankSentences(band(level))).s, ws = words(s);
+    const s = pick(bankSentences(band(level)).concat(bankSentences(band(level) - 1))).s, ws = words(s);
     const lowerFirst = ws[0][0].toLowerCase() + ws[0].slice(1) + ' ' + ws.slice(1).join(' ');
     const name = ws.slice(1).findIndex(w => /^[A-Z]/.test(w)) + 1;
     const wrong2 = name > 0 ? ws.map((w, i) => i === name ? w[0].toLowerCase() + w.slice(1) : w).join(' ')
@@ -175,6 +175,28 @@ function makeWordWork(level, count = 6) {
   return out.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
 }
 
+// Names for the practice picker.
+const SKILL_NAMES = { firstSound: 'First sounds', rhyme: 'Rhymes', missingLetter: 'Missing letters', dictation: 'Hear it, spell it',
+  wordMeaning: 'Word meanings', contextClue: 'Context clues', matchWords: 'Match words', buildSentence: 'Build a sentence',
+  punctuation: 'Punctuation', capitals: 'Capital letters', partOfSpeech: 'Kinds of words', plurals: 'Plurals', pastTense: 'Past tense',
+  synonyms: 'Same meaning', antonyms: 'Opposites', compound: 'Compound words', contractions: 'Contractions', affixes: 'Prefixes & suffixes',
+  factOpinion: 'Fact or opinion', figurative: 'Similes & metaphors', writeSentence: 'Write a sentence' };
+const skillsFor = level => Object.entries(GENERATORS).filter(([, g]) => near(level, g.bands[0], g.bands[1])).map(([id]) => id);
+
+// A practice sheet of one skill: several exercises, no prompt twice.
+function makePractice(level, id, count = 6) {
+  const g = GENERATORS[id], out = [], seen = new Set();
+  for (let tries = 0; out.length < count && tries < count * 8; tries++) {
+    const ex = g.make(level);
+    const key = ex && ex.prompt + JSON.stringify(ex.options || ex.tiles || ex.pairs || ex.answer);
+    if (!ex || seen.has(key)) continue;
+    if (ex.type === 'choice' && !(ex.options.length >= 2 && new Set(ex.options).size === ex.options.length && ex.answer >= 0)) continue;
+    seen.add(key);
+    out.push({ id, ...ex });
+  }
+  return out;
+}
+
 /* ---------------- Booklets ---------------- */
 const Booklet = {
   get() {
@@ -210,8 +232,8 @@ const Booklet = {
 };
 
 /* ---------------- Exercise screens ---------------- */
-function mountWordWork(el, level, sheetNo, { onDone }) {
-  const list = makeWordWork(level);
+function mountWordWork(el, level, sheetNo, { onDone, list }) {
+  list = list || makeWordWork(level);
   const results = [];
   let i = 0;
   show();

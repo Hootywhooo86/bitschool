@@ -194,6 +194,17 @@ table.data{width:100%;border-collapse:collapse;margin:12px 0;font-size:16px}
 .rec-row,.check-row{padding:16px;background:var(--bg);border:3px solid var(--line);margin:12px 0}
 .player audio{width:100%;min-height:54px}
 .hand{max-width:100%;min-height:128px;background:#fff;border:3px solid var(--line)}
+.goal{padding:18px 24px}
+.goal-top{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.goal-bar{flex:1;min-width:220px}
+.goal-bar .bar{max-width:none}
+.days{display:flex;gap:6px;flex-wrap:wrap;margin-top:14px}
+.day{width:40px;height:40px;display:grid;place-items:center;font-family:var(--pixel);font-size:12px;border:3px solid var(--line);background:var(--bg);color:var(--muted)}
+.day.some{border-color:var(--accent2)}
+.day.met{background:var(--accent2);border-color:var(--accent2-deep);color:var(--on-accent2);font-size:18px}
+.day.today{outline:3px dashed var(--accent);outline-offset:2px}
+.goal-cheer{font-family:var(--pixel);font-size:clamp(14px,3vw,20px);color:var(--on-accent2);background:var(--accent2);box-shadow:0 6px 0 var(--accent2-deep);padding:18px;margin:16px auto;max-width:640px;line-height:1.6}
+.clock{color:var(--accent2)}
 .idea-list{display:flex;flex-wrap:wrap;gap:12px;margin:12px 0}
 .idea-chip{display:flex;align-items:center;gap:12px;background:var(--bg);border:3px solid var(--line);padding:0 0 0 16px;font-weight:800;font-size:18px}
 .booklet{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:12px 0}
@@ -201,7 +212,18 @@ table.data{width:100%;border-collapse:collapse;margin:12px 0;font-size:16px}
 .sheet-cell{width:40px;height:40px;display:grid;place-items:center;font-family:var(--pixel);font-size:12px;border:3px solid var(--line);background:var(--bg);color:var(--muted)}
 .sheet-cell.done{background:var(--accent);border-color:var(--accent-deep);color:var(--on-accent)}
 .sheet-cell.redo{border-color:var(--accent2);color:var(--accent2)}
-.center .idea-list{display:flex;flex-wrap:wrap;gap:12px;margin:12px 0}
+.center .goal{padding:18px 24px}
+.goal-top{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.goal-bar{flex:1;min-width:220px}
+.goal-bar .bar{max-width:none}
+.days{display:flex;gap:6px;flex-wrap:wrap;margin-top:14px}
+.day{width:40px;height:40px;display:grid;place-items:center;font-family:var(--pixel);font-size:12px;border:3px solid var(--line);background:var(--bg);color:var(--muted)}
+.day.some{border-color:var(--accent2)}
+.day.met{background:var(--accent2);border-color:var(--accent2-deep);color:var(--on-accent2);font-size:18px}
+.day.today{outline:3px dashed var(--accent);outline-offset:2px}
+.goal-cheer{font-family:var(--pixel);font-size:clamp(14px,3vw,20px);color:var(--on-accent2);background:var(--accent2);box-shadow:0 6px 0 var(--accent2-deep);padding:18px;margin:16px auto;max-width:640px;line-height:1.6}
+.clock{color:var(--accent2)}
+.idea-list{display:flex;flex-wrap:wrap;gap:12px;margin:12px 0}
 .idea-chip{display:flex;align-items:center;gap:12px;background:var(--bg);border:3px solid var(--line);padding:0 0 0 16px;font-weight:800;font-size:18px}
 .booklet{justify-content:center}
 .match-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:16px;margin:14px 0}

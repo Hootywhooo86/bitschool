@@ -25,15 +25,55 @@ function screenHome() {
         : '<p class="lead">Start with the placement test. It finds the level that fits — not too easy, not too hard.</p>'}
       </div>
     </section>
+    ${s.placed ? goalHTML() : ''}
     <section class="tiles">
       ${!s.placed ? tile('placement', 'flag', 'PLACEMENT TEST', 'Start here — find your level', 'hot') : ''}
       ${tile('lesson', 'book', "TODAY'S SHEET", s.placed ? `Sheet ${nextNo} of ${book.size} · ${Booklet.kind(nextNo) === 'words' ? 'Word Work' : 'Story'}` : 'Unlocks after placement', s.placed ? 'hot' : 'dim')}
+      ${s.placed ? tile('practice', 'sheet', 'WORKSHEETS', 'Extra practice, any skill') : ''}
       ${tile('review', 'star', 'WORD REVIEW', due ? due + ' word' + (due > 1 ? 's' : '') + ' to practice' : 'All caught up')}
       ${s.placed ? tile('placement', 'flag', 'RETAKE PLACEMENT', 'Check the level again') : ''}
       ${tile('colors', 'palette', 'COLORS', 'Make it yours')}
       ${tile('parent', 'chart', 'GROWN-UPS', 'Progress & settings')}
     </section>
     <p class="status-line" id="modelStatus">${modelStatus()}</p>`;
+}
+
+// Today's goal, the streak, and the last two weeks as stars.
+function goalHTML() {
+  const goal = Store.state.settings.dailyGoal, done = Store.today().sheets, streak = Store.streak();
+  const days = [];
+  for (let i = 13; i >= 0; i--) {
+    const t = Date.now() - i * DAY, k = Store.dayKey(t), d = Store.state.days[k];
+    const label = new Date(t).toLocaleDateString(undefined, { weekday: 'narrow' });
+    days.push(`<span class="day ${Store.goalMet(k) ? 'met' : d ? 'some' : ''} ${i === 0 ? 'today' : ''}" title="${k}: ${d ? d.sheets : 0} sheets">${Store.goalMet(k) ? '★' : label}</span>`);
+  }
+  return `<section class="panel goal">
+    <div class="goal-top">
+      <div class="stat"><b>${Math.min(done, goal)} / ${goal}</b><span>${done >= goal ? 'GOAL DONE TODAY!' : 'SHEETS TODAY'}</span></div>
+      <div class="stat"><b>${streak}</b><span>DAY STREAK</span></div>
+      <div class="goal-bar"><div class="bar"><i style="width:${Math.min(100, done / goal * 100)}%"></i></div>
+        <p class="muted">${done >= goal ? 'Great job! Extra sheets still count.' : `${goal - done} more sheet${goal - done > 1 ? 's' : ''} to reach today's goal.`}</p></div>
+    </div>
+    <div class="days" aria-label="Last two weeks">${days.join('')}</div>
+  </section>`;
+}
+
+// A Kumon-style clock for the sheet; returns a function that gives the seconds so far.
+function startClock(holder) {
+  const t0 = Date.now(), el = document.createElement('span');
+  el.className = 'pill clock';
+  holder.appendChild(el);
+  const tick = () => { el.textContent = '⏱ ' + fmtTime((Date.now() - t0) / 1000); };
+  tick();
+  const timer = setInterval(tick, 1000);
+  onLeave(() => clearInterval(timer));
+  return () => { clearInterval(timer); return Math.round((Date.now() - t0) / 1000); };
+}
+
+// Last time for the same kind of sheet at this level, to say "faster than last time".
+function lastTime(kind, level) {
+  const prev = Store.state.sessions.filter(x => x.kind === kind && x.level === level && x.sheetSeconds).slice(-1)[0];
+  return prev ? prev.sheetSeconds : null;
 }
 
 // The booklet for this level: one square per sheet, filled in when passed.
@@ -208,11 +248,13 @@ function sheetHeader(kind, n, level) {
 function screenWordWork(n) {
   const s = Store.state, level = s.level;
   view().innerHTML = `<section class="panel">${sheetHeader('words', n, level)}<div id="stage"></div></section>`;
-  const stage = $('#stage');
+  const stage = $('#stage'), stopClock = startClock($('.lesson-meta'));
   mountWordWork(stage, level, n, { onDone: results => {
+    const seconds = stopClock(), before = lastTime('words', level);
     const score = Math.round(results.reduce((t, r) => t + r.score, 0) / results.length * 100);
     const outcome = Booklet.record(n, 'words', score);
-    s.sessions.push({ id: uid(), at: Date.now(), level, kind: 'words', sheet: n, title: 'Word Work · sheet ' + n, score, passed: outcome.passed, skills: results });
+    s.sessions.push({ id: uid(), at: Date.now(), level, kind: 'words', sheet: n, title: 'Word Work · sheet ' + n, score, passed: outcome.passed, skills: results, sheetSeconds: seconds });
+    outcome.seconds = seconds; outcome.before = before; outcome.goalMet = Store.logSheet(seconds);
     s.sessions = s.sessions.slice(-300);
     Store.event('worksheet.done', { level: levelName(level), sheet: n, kind: 'words', score, passed: outcome.passed });
     Store.save();
@@ -231,7 +273,8 @@ function sheetDone(stage, kind, n, score, o, detailHTML = '') {
       <h1>${o.up ? 'BOOKLET DONE — LEVEL UP!' : o.passed ? 'Sheet passed!' : 'Nice work — this sheet comes back next time.'}</h1>
       ${o.up ? `<div class="level-big">${levelName(o.from)} → ${levelName(o.to)}</div>` : ''}
       <div class="stars">${[0, 1, 2].map(i => `<span class="${i < stars ? '' : 'off'}">${icon('star')}</span>`).join('')}</div>
-      <div class="tiles-row"><div class="stat"><b>${score}%</b><span>SCORE (PASS ${o.mark}%)</span></div>${kind === 'story' ? '' : ''}</div>
+      ${goalCheerHTML(o)}
+      <div class="tiles-row"><div class="stat"><b>${score}%</b><span>SCORE (PASS ${o.mark}%)</span></div>${timeStatHTML(o)}</div>
       ${detailHTML ? `<div class="result-list">${detailHTML}</div>` : ''}
       ${o.up ? '<p class="lead">You passed every sheet in the booklet. A new booklet starts at the next level.</p>'
         : `<p class="lead">${Booklet.passedCount()} of ${b.size} sheets passed in booklet ${levelName(b.level)}.${o.passed ? '' : ` Score ${o.mark}% or more to pass a sheet — every try makes you stronger!`}</p>`}
@@ -241,10 +284,71 @@ function sheetDone(stage, kind, n, score, o, detailHTML = '') {
         <button class="btn alt" data-go="home"><span>HOME</span></button>
       </div>
     </div>`;
-  if (o.up || o.passed) Speech.say(o.up ? 'You finished the booklet! Level up!' : 'Sheet passed! Great job!');
+  if (o.up || o.passed || o.goalMet) Speech.say(o.up ? 'You finished the booklet! Level up!' : o.goalMet ? 'Daily goal done! Great job!' : 'Sheet passed! Great job!');
   $('[data-again]', stage).onclick = () => screenSheet();
   updateTop();
   prefetch();
+}
+
+function timeStatHTML(o) {
+  if (!o.seconds) return '';
+  const faster = o.before && o.seconds < o.before;
+  return `<div class="stat"><b>${fmtTime(o.seconds)}</b><span>${faster ? 'FASTER THAN LAST TIME!' : 'TIME'}</span></div>`;
+}
+function goalCheerHTML(o) {
+  return o.goalMet ? `<div class="goal-cheer">★ DAILY GOAL DONE! ${Store.streak()} day streak ★</div>` : '';
+}
+
+/* ---------------- Practice worksheets ---------------- */
+// Extra Word Work any time: pick a skill or a mixed sheet. Counts toward the daily goal, not the booklet.
+function screenPractice() {
+  const s = Store.state;
+  if (!s.placed) { toast('Take the placement test first'); return go('placement'); }
+  const level = s.level, ids = skillsFor(level);
+  view().innerHTML = `
+    <section class="panel">
+      <div class="lesson-meta"><span class="pill">WORKSHEETS</span><span class="pill">LEVEL ${levelName(level)}</span></div>
+      <h1>${icon('sheet')} Pick a worksheet</h1>
+      <p class="muted">Extra practice. It counts toward today's goal but doesn't change your booklet.</p>
+      <div class="tiles">
+        <button class="tile hot" data-skill="mixed">${icon('star')}<b>MIXED SHEET</b><span>A bit of everything</span></button>
+        ${ids.map(id => `<button class="tile" data-skill="${id}">${icon('sheet')}<b>${esc(SKILL_NAMES[id].toUpperCase())}</b><span>6 questions</span></button>`).join('')}
+      </div>
+    </section>`;
+  $$('[data-skill]').forEach(b => b.onclick = () => runPractice(b.dataset.skill));
+}
+
+function runPractice(skill) {
+  const s = Store.state, level = s.level;
+  const list = skill === 'mixed' ? makeWordWork(level) : makePractice(level, skill);
+  const name = skill === 'mixed' ? 'Mixed sheet' : SKILL_NAMES[skill];
+  view().innerHTML = `<section class="panel"><div class="lesson-meta"><span class="pill">WORKSHEET · ${esc(name.toUpperCase())}</span><span class="pill">LEVEL ${levelName(level)}</span></div><div id="stage"></div></section>`;
+  const stage = $('#stage'), stopClock = startClock($('.lesson-meta'));
+  mountWordWork(stage, level, 0, { list, onDone: results => {
+    const seconds = stopClock(), before = lastTime('practice', level);
+    const score = Math.round(results.reduce((t, r) => t + r.score, 0) / results.length * 100);
+    const o = { seconds, before, goalMet: Store.logSheet(seconds) };
+    s.sessions.push({ id: uid(), at: Date.now(), level, kind: 'practice', title: 'Worksheet · ' + name, score, passed: score >= s.settings.passMark, skills: results, sheetSeconds: seconds });
+    s.sessions = s.sessions.slice(-300);
+    Store.event('worksheet.done', { level: levelName(level), kind: 'practice', skill, score });
+    Store.save();
+    const stars = score >= 95 ? 3 : score >= s.settings.passMark ? 2 : score >= 60 ? 1 : 0;
+    stage.innerHTML = `
+      <div class="center">
+        <h1>${score >= s.settings.passMark ? 'Great practice!' : 'Good practice — keep going!'}</h1>
+        ${goalCheerHTML(o)}
+        <div class="stars">${[0, 1, 2].map(i => `<span class="${i < stars ? '' : 'off'}">${icon('star')}</span>`).join('')}</div>
+        <div class="tiles-row"><div class="stat"><b>${score}%</b><span>SCORE</span></div>${timeStatHTML(o)}</div>
+        <div class="row wrap-row center-row">
+          <button class="btn" data-more><span>ANOTHER SHEET ▶</span></button>
+          <button class="btn alt" data-pick><span>PICK A SKILL</span></button>
+          <button class="btn alt" data-go="home"><span>HOME</span></button>
+        </div>
+      </div>`;
+    Speech.say(o.goalMet ? 'Daily goal done! Great job!' : 'Great practice!');
+    $('[data-more]', stage).onclick = () => runPractice(skill);
+    $('[data-pick]', stage).onclick = () => screenPractice();
+  } });
 }
 
 /* ---------------- Story sheets ---------------- */
@@ -322,10 +426,10 @@ async function runStory(n, topic) {
     <section class="panel">
       <div class="pips">${steps.map(k => `<span class="pip" data-step="${k}">${STEPS.find(x => x[0] === k)[1]}</span>`).join('')}</div>
       ${sheetHeader('story', n, level)}
-      <p class="muted">${p.source === 'model' ? 'A new story written for this level' : 'Built-in story'}</p>
+      <p class="muted">${p.source === 'model' ? 'A new story written for this level' + (p.topic ? ' about ' + esc(p.topic) : '') : 'Built-in story'}</p>
       <div id="stage"></div>
     </section>`;
-  const stage = $('#stage');
+  const stage = $('#stage'), stopClock = startClock($('.lesson-meta'));
   step();
 
   function step() {
@@ -347,11 +451,13 @@ async function runStory(n, topic) {
     const taskPct = items.length ? Math.round(items.filter(Boolean).length / items.length * 100) : 0;
     const read = res.read && !res.read.skipped ? res.read : null;
     const score = Math.round(read ? 0.4 * read.accuracy + 0.6 * taskPct : taskPct);
+    const seconds = stopClock(), before = lastTime('story', level);
     const outcome = Booklet.record(n, 'story', score), passed = outcome.passed, from = level;
+    outcome.seconds = seconds; outcome.before = before; outcome.goalMet = Store.logSheet(seconds);
     (read ? read.missed : []).forEach(w => Store.missWord(w));
     const session = {
       id: uid(), at: Date.now(), level: from, title: p.title, passageId: p.id, source: p.source, topic: p.topic || '',
-      kind: 'story', sheet: n, text: p.text, wpm: read ? read.wpm : null, accuracy: read ? read.accuracy : null, seconds: read ? read.seconds : null,
+      kind: 'story', sheet: n, sheetSeconds: seconds, text: p.text, wpm: read ? read.wpm : null, accuracy: read ? read.accuracy : null, seconds: read ? read.seconds : null,
       mode: read ? read.mode : 'skipped', recId: read ? read.recId : null, missed: read ? read.missed : [],
       taskPct, score, passed, questions: res.questions, circle: res.circle, blank: res.blank, order: res.order,
     };

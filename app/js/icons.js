@@ -115,6 +115,12 @@ const ICONS = {
     'kk.kaaaaaaaak.kk', '..kkaaakkaaakk..', 'kk.kaaakkaaak.kk', '..kkaaakkaaakk..',
     'kk.kaaakkaaak.kk', '....kkkkkkkk....', '................', '................',
   ],
+  sheet: [
+    '................', '..kkkkkkkkkk....', '..kwwwwwwwwk....', '..kwmmmmmmwk....',
+    '..kwwwwwwwwk....', '..kwmmmmmwwk....', '..kwwwwwwwwk....', '..kwmmmmmmwk....',
+    '..kwwwwwwwwk....', '..kwwwwwwwak....', '..kwawwwwawk....', '..kwwawwawwk....',
+    '..kwwwaawwwk....', '..kkkkkkkkkk....', '................', '................',
+  ],
 };
 
 // size is never below 128: every picture in the app is 128px or larger.
