@@ -66,7 +66,7 @@ The passage ("text"):
 - About ${sentences} sentences in ${paras}. That is about ${s.words} words (never fewer than ${s.minWords} or more than ${s.maxWords}).
 - Sentences average about ${s.sentenceWords} words.
 - Word choice: ${s.vocab}.
-- Kid-safe, like a cartoon: action and adventure are fine, but no blood, nobody dies or is badly hurt, no swearing, nothing too scary.${genre.startsWith('nonfiction') ? '\n- Only state facts you are certain are true.' : ''}
+- Kid-safe, like a cartoon: action and adventure are fine, but no blood, nobody dies or is badly hurt (bad guys and monsters run away, get caught or give up), no swearing, nothing too scary.${genre.startsWith('nonfiction') ? '\n- Only state facts you are certain are true.' : ''}
 - Separate paragraphs with a blank line.
 
 Then, about that passage:
@@ -131,7 +131,7 @@ const STORY_SCHEMA = {
   },
 };
 // Words that don't belong in a story for a young reader, even an action one.
-const NOT_KID_SAFE = /\b(blood\w*|kill(s|ed|er|ing)?|murder\w*|dead|death|die[ds]?|dying|corpses?|gore|guts|stab\w*|behead\w*|suicide|bomb(s|ed|ing)?|shit|fuck\w*)\b/i;
+const NOT_KID_SAFE = /\b(stopped breathing|never (woke|moved|got) up( again)?|never (woke|moved|breathed) again|lifeless|passed away|blood\w*|kill(s|ed|er|ing)?|murder\w*|dead|death|die[ds]?|dying|corpses?|gore|guts|stab\w*|behead\w*|suicide|bomb(s|ed|ing)?|shit|fuck\w*)\b/i;
 
 // Words a model writes when it copies instructions instead of answering them.
 const PLACEHOLDER = /\b(a question|correct answer|wrong answer|question about|one sentence|copied exactly|child-friendly|harder word|short title|the word\(s\))\b/i;
