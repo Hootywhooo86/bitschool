@@ -201,6 +201,12 @@ function tabSettings(el) {
     </div>
     <div class="row wrap-row"><button class="btn alt ${st.allowSkipRead ? 'on' : ''}" data-skip><span>SKIP READ-ALOUD ALLOWED: ${st.allowSkipRead ? 'ON' : 'OFF'}</span></button></div>
 
+    <h2 class="sub-h">Story ideas</h2>
+    <p class="muted">Before each Story sheet he picks what it's about: superheroes, missions, space bugs, robots and more. Add his favorites here, like a hero, game or show. Stories stay kid-safe: action is fine, but no blood, nobody dies, no swearing, and any story that slips is thrown out and rewritten.</p>
+    <div class="idea-list">${st.storyIdeas.map((t, k) => `<span class="idea-chip">${esc(t)}<button class="btn warn" data-delidea="${k}"><span>REMOVE</span></button></span>`).join('') || '<p class="muted">No ideas added yet.</p>'}</div>
+    <div class="row wrap-row"><input class="input grow" data-idea maxlength="60" placeholder="Like: Spider-Man, Helldivers, Call of Duty" aria-label="Story idea"><button class="btn" data-addidea><span>ADD IDEA</span></button></div>
+    <div class="row wrap-row"><button class="btn alt ${st.ownIdeas ? 'on' : ''}" data-ownideas><span>HE CAN TYPE HIS OWN IDEAS: ${st.ownIdeas ? 'ON' : 'OFF'}</span></button></div>
+
     <h2 class="sub-h">Story writer</h2>
     <p class="muted">Stories, open-answer checking and word meanings come from an AI model that runs on your own device or computer. Nothing is sent to the internet except the one-time model download.</p>
     <div class="row wrap-row">
@@ -243,6 +249,16 @@ function tabSettings(el) {
   $$('[data-mark]', el).forEach(b => b.onclick = () => { st.passMark = Math.max(50, Math.min(100, st.passMark + +b.dataset.mark)); rerender(); });
   $$('[data-sheets]', el).forEach(b => b.onclick = () => { st.sheetsPerBooklet = Math.max(2, Math.min(10, st.sheetsPerBooklet + +b.dataset.sheets)); rerender(); });
   $('[data-skip]', el).onclick = () => { st.allowSkipRead = !st.allowSkipRead; rerender(); };
+  const addIdea = () => {
+    const t = $('[data-idea]', el).value.trim().slice(0, 60);
+    if (!t) return toast('Type an idea first');
+    if (!st.storyIdeas.some(x => x.toLowerCase() === t.toLowerCase())) st.storyIdeas.push(t);
+    rerender(); toast('Added: ' + t);
+  };
+  $('[data-addidea]', el).onclick = addIdea;
+  $('[data-idea]', el).addEventListener('keydown', e => e.key === 'Enter' && addIdea());
+  $$('[data-delidea]', el).forEach(b => b.onclick = () => { st.storyIdeas.splice(+b.dataset.delidea, 1); rerender(); });
+  $('[data-ownideas]', el).onclick = () => { st.ownIdeas = !st.ownIdeas; rerender(); };
   $$('[data-where]', el).forEach(b => b.onclick = async () => {
     if (b.dataset.where === 'device') {
       if (!Device.available()) { toast('Downloading a model works in the Android and Windows apps'); return; }

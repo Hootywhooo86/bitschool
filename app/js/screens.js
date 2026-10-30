@@ -62,15 +62,17 @@ function modelStatus() {
 
 /* ---------------- Getting a passage ---------------- */
 let prefetching = null;
-async function getPassage(level, onWait, onProgress) {
+async function getPassage(level, onWait, onProgress, topic) {
   const s = Store.state;
-  // A story being written in the background is usually the one we need: wait for it rather than start another.
-  if (!(s.cache[level] || []).length && prefetching) { onWait && onWait(); await prefetching; }
-  const cache = s.cache[level] || [];
-  if (cache.length) { const p = cache.shift(); s.cache[level] = cache; Store.save(); return p; }
+  const matches = p => !topic || p.topic === topic;
+  const take = () => { const c = s.cache[level] || [], i = c.findIndex(matches); if (i < 0) return null; const p = c.splice(i, 1)[0]; s.cache[level] = c; Store.save(); return p; };
+  // A story being written in the background is often the one we need: wait for it rather than start another.
+  if (!(s.cache[level] || []).some(matches) && prefetching) { onWait && onWait(); await prefetching; }
+  const cached = take();
+  if (cached) return cached;
   if (Model.online) {
     onWait && onWait();
-    try { return await Model.writeStory(level, onProgress); }
+    try { return await Model.writeStory(level, onProgress, topic); }
     catch (e) { toast('The story writer had trouble — using a built-in story'); }
   }
   const b = builtinFor(level, s.usedBuiltins);
@@ -78,16 +80,17 @@ async function getPassage(level, onWait, onProgress) {
   Store.save();
   return b;
 }
-// Write the next stories in the background so the child does not wait.
+// Write the next stories in the background so he does not wait: his last pick for this level, then the next level.
 function prefetch() {
   if (prefetching || !Model.online || !Store.state.placed) return prefetching;
   prefetching = (async () => {
     try {
-      for (const lv of [Store.state.level, Math.min(LEVEL_COUNT - 1, Store.state.level + 1)]) {
-        const c = Store.state.cache[lv] || [];
-        if (c.length) continue;
-        const p = await Model.writeStory(lv);
-        (Store.state.cache[lv] = Store.state.cache[lv] || []).push(p);
+      const st = Store.state, fav = st.storyPicks[0];
+      for (const lv of [st.level, Math.min(LEVEL_COUNT - 1, st.level + 1)]) {
+        const c = st.cache[lv] || [];
+        if (c.some(p => !fav || p.topic === fav)) continue;
+        const p = await Model.writeStory(lv, null, fav);
+        (st.cache[lv] = st.cache[lv] || []).push(p);
         Store.save();
       }
     } catch (e) {}
@@ -247,14 +250,67 @@ function sheetDone(stage, kind, n, score, o, detailHTML = '') {
 /* ---------------- Story sheets ---------------- */
 const STEPS = [['warmup', 'WORDS'], ['read', 'READ'], ['questions', 'QUESTIONS'], ['circle', 'CIRCLE'], ['blank', 'BLANK'], ['order', 'ORDER'], ['done', 'DONE']];
 
-async function screenLesson(n) {
+function screenLesson(n) {
   const s = Store.state;
   if (!s.placed) { toast('Take the placement test first'); return go('placement'); }
   if (!n) n = Booklet.next();
+  // With a story writer he picks what the story is about; the built-in stories are fixed.
+  if (Model.online) storyPicker(n, topic => runStory(n, topic));
+  else runStory(n, null);
+}
+
+function storyPicker(n, onPick) {
+  const s = Store.state, st = s.settings, level = s.level;
+  const ready = topic => (s.cache[level] || []).some(p => p.topic === topic);
+  const choices = [
+    ...st.storyIdeas.map(idea => ({ topic: idea, name: idea.toUpperCase(), icon: 'star' })),
+    ...STORY_THEMES,
+  ];
+  view().innerHTML = `
+    <section class="panel">
+      ${sheetHeader('story', n, level)}
+      <h1>Pick your story!</h1>
+      <p class="muted">The story writer makes a new story about what you pick.</p>
+      <div class="tiles">
+        ${choices.map((c, k) => `<button class="tile ${ready(c.topic) ? 'hot' : ''}" data-pick="${k}">${icon(c.icon)}<b>${esc(c.name)}</b><span>${ready(c.topic) ? 'Ready now!' : 'Takes a minute to write'}</span></button>`).join('')}
+        ${st.ownIdeas ? `<button class="tile" data-own>${icon('palette')}<b>MY OWN IDEA</b><span>Type or say it</span></button>` : ''}
+        <button class="tile" data-surprise>${icon('book')}<b>SURPRISE ME</b><span>${(s.cache[level] || []).length ? 'Ready now!' : 'Any story'}</span></button>
+      </div>
+    </section>`;
+  const pick = topic => {
+    if (topic) { s.storyPicks = [topic, ...s.storyPicks.filter(t => t !== topic)].slice(0, 10); Store.save(); }
+    onPick(topic);
+  };
+  $$('[data-pick]').forEach(b => b.onclick = () => pick(choices[+b.dataset.pick].topic));
+  $('[data-surprise]').onclick = () => pick(null);
+  if ($('[data-own]')) $('[data-own]').onclick = () => {
+    const m = modal(`
+      <h2>What should your story be about?</h2>
+      <input class="input" maxlength="60" placeholder="Like: a dragon who loves pizza" aria-label="Your story idea">
+      <div class="row wrap-row center-row">
+        ${Speech.canListen ? `<button class="btn alt" data-x="say">${icon('mic')}<span>SAY IT</span></button>` : ''}
+        <button class="btn" data-x="go"><span>WRITE MY STORY ▶</span></button>
+        <button class="btn alt" data-x="close"><span>BACK</span></button>
+      </div>`);
+    const inp = $('input', m.el);
+    inp.focus();
+    const goOwn = () => { const t = inp.value.trim(); if (!t) return toast('Type an idea first'); m.close(); pick(t); };
+    $('[data-x=go]', m.el).onclick = goOwn;
+    inp.addEventListener('keydown', e => e.key === 'Enter' && goOwn());
+    $('[data-x=close]', m.el).onclick = m.close;
+    if ($('[data-x=say]', m.el)) $('[data-x=say]', m.el).onclick = async () => {
+      toast('Listening… say your idea');
+      try { const said = await Speech.listenOnce(); if (said) inp.value = said; } catch (e) { toast('Could not listen: ' + e.message); }
+    };
+  };
+}
+
+async function runStory(n, topic) {
+  const s = Store.state;
   const level = s.level;
   view().innerHTML = loadingHTML('Getting your story ready…');
-  const raw = await getPassage(level, () => { view().innerHTML = loadingHTML('Writing a new ' + levelName(level) + ' story…'); },
-    n => { const el = $('#writeProgress'); if (el) el.textContent = 'About ' + Math.min(99, Math.round(n / (levelSpec(level).words * 1.4 + 250) * 100)) + '% written'; });
+  const raw = await getPassage(level, () => { view().innerHTML = loadingHTML('Writing a new ' + levelName(level) + ' story' + (topic ? ' about ' + topic : '') + '…'); },
+    n => { const el = $('#writeProgress'); if (el) el.textContent = 'About ' + Math.min(99, Math.round(n / (levelSpec(level).words * 1.4 + 250) * 100)) + '% written'; }, topic);
   if (!location.hash.includes('lesson')) return; // left while waiting
   const p = preparePassage(raw);
   const due = Store.dueWords(5);

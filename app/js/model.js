@@ -50,22 +50,23 @@ const Model = {
     return parseJSON(text);
   },
 
-  async writeStory(level, onProgress) {
+  async writeStory(level, onProgress, chosen) {
     const s = levelSpec(level);
     const n = Store.state.sessions.length;
     const genre = level >= 30 && n % 3 === 2 ? 'nonfiction (true facts, explained simply)' : 'story';
     const recent = Store.state.sessions.slice(-8).map(x => x.topic).filter(Boolean);
-    const topic = shuffle(TOPICS.filter(t => !recent.includes(t)))[0];
+    const topic = chosen || shuffle(TOPICS.filter(t => !recent.includes(t)))[0];
     const sentences = Math.max(4, Math.round(s.words / s.sentenceWords));
     const paras = s.words < 70 ? 'one paragraph' : s.words < 160 ? 'two or three paragraphs' : s.words < 260 ? 'three or four paragraphs' : 'four or five paragraphs';
     const system = 'You write original reading-practice passages for children, like the stories in graded readers. You reply with JSON only.';
-    const user = `Write an original ${genre} for a child reading at level ${s.name} (${s.grade}). Topic: ${topic}.
+    const user = `Write an original ${chosen ? 'story' : genre} for a child reading at level ${s.name} (${s.grade}). Topic: ${topic}.${chosen ? `
+The child picked this topic. If it names a hero, game, movie or show, use its characters and world.` : ''}
 
 The passage ("text"):
 - About ${sentences} sentences in ${paras}. That is about ${s.words} words (never fewer than ${s.minWords} or more than ${s.maxWords}).
 - Sentences average about ${s.sentenceWords} words.
 - Word choice: ${s.vocab}.
-- Warm, safe and fun. Nobody gets hurt, lost forever or scared. No brands.${genre.startsWith('nonfiction') ? '\n- Only state facts you are certain are true.' : ''}
+- Kid-safe, like a cartoon: action and adventure are fine, but no blood, nobody dies or is badly hurt, no swearing, nothing too scary.${genre.startsWith('nonfiction') ? '\n- Only state facts you are certain are true.' : ''}
 - Separate paragraphs with a blank line.
 
 Then, about that passage:
@@ -129,6 +130,9 @@ const STORY_SCHEMA = {
     mainIdea: STR,
   },
 };
+// Words that don't belong in a story for a young reader, even an action one.
+const NOT_KID_SAFE = /\b(blood\w*|kill(s|ed|er|ing)?|murder\w*|dead|death|die[ds]?|dying|corpses?|gore|guts|stab\w*|behead\w*|suicide|bomb(s|ed|ing)?|shit|fuck\w*)\b/i;
+
 // Words a model writes when it copies instructions instead of answering them.
 const PLACEHOLDER = /\b(a question|correct answer|wrong answer|question about|one sentence|copied exactly|child-friendly|harder word|short title|the word\(s\))\b/i;
 
@@ -139,6 +143,7 @@ function checkStory(j, level) {
   const count = words(text).length;
   if (count < s.minWords * 0.75 || count > s.maxWords * 1.4) throw new Error(`Story was ${count} words, wanted about ${s.words}`);
   if (PLACEHOLDER.test(text)) throw new Error('Story text was copied from the instructions');
+  if (NOT_KID_SAFE.test(text + ' ' + (j.title || ''))) throw new Error('Story was not kid-safe');
   const grade = readingGrade(text), maxGrade = BAND_MAX_GRADE[Math.floor(level / 10)];
   if (grade > maxGrade) throw new Error(`Story read at grade ${grade.toFixed(1)}, too hard for ${s.name}`);
   const inText = w => words(text).some(x => norm(x) === norm(w));

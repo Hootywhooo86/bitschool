@@ -38,3 +38,15 @@ const TOPICS = ['a pet who gets lost', 'a trip to the market', 'two friends buil
   'insects', 'a camping trip', 'volcanoes', 'a new kid at school', 'snow', 'dinosaurs', 'a music lesson',
   'a bike ride', 'how plants grow', 'a lighthouse', 'a lost tooth', 'birds that migrate', 'a science experiment',
   'a family recipe', 'a museum', 'weather', 'a treasure map', 'an inventor', 'a farm in the morning', 'the desert'];
+
+// Story themes he can pick before a Story sheet. Grown-ups can add their own ideas in Settings.
+const STORY_THEMES = [
+  { id: 'heroes', name: 'SUPERHEROES', icon: 'mask', topic: 'a kid superhero who saves the day' },
+  { id: 'missions', name: 'MISSIONS', icon: 'helmet', topic: 'a brave team of soldiers on an important mission' },
+  { id: 'bugs', name: 'SPACE BUGS', icon: 'bug', topic: 'space troopers defending a planet from giant alien bugs' },
+  { id: 'space', name: 'SPACE', icon: 'rocket', topic: 'a rocket trip to explore a new planet' },
+  { id: 'robots', name: 'ROBOTS', icon: 'robot', topic: 'a robot who becomes a hero' },
+  { id: 'dinos', name: 'DINOSAURS', icon: 'dino', topic: 'dinosaurs' },
+  { id: 'sports', name: 'SPORTS', icon: 'ball', topic: 'a big game with a team' },
+  { id: 'knights', name: 'KNIGHTS & DRAGONS', icon: 'castle', topic: 'a knight and a dragon' },
+];

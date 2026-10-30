@@ -67,6 +67,54 @@ const ICONS = {
     '.kwaawwwkkwwwwk.', '.kwwwwwk..kwwk..', '.kwwggwwk..kwk..', '..kwggwwwkkwk...',
     '...kkwwwwwwk....', '.....kkkkkk.....', '................', '................',
   ],
+  rocket: [
+    '................', '.......kk.......', '......kwwk......', '.....kwwwwk.....',
+    '.....kwaawk.....', '.....kwaawk.....', '.....kwwwwk.....', '....kkwwwwkk....',
+    '...krkwwwwkrk...', '...krkwwwwkrk...', '...kkkwwwwkkk...', '......kkkk......',
+    '.....kyyyyk.....', '......kyyk......', '.......kk.......', '................',
+  ],
+  robot: [
+    '................', '.......kk.......', '.......kk.......', '...kkkkkkkkkk...',
+    '...kmmmmmmmmk...', '...kmaammaamk...', '...kmmmmmmmmk...', '...kmmkkkkmmk...',
+    '...kkkkkkkkkk...', '.kkkmmmmmmmmkkk.', '.kmkmmrrmmmmkmk.', '.kkkmmmmmmmmkkk.',
+    '....kmmmmmmk....', '....kmk..kmk....', '....kkk..kkk....', '................',
+  ],
+  dino: [
+    '................', '........kkkkk...', '.......kgggggk..', '.......kgkggggk.',
+    '.......kggggkkk.', '.......kgggk....', 'k......kgggkk...', 'kk....kgggggk...',
+    'kgk..kggggggk...', '.kgkkgggggggk...', '..kgggggggggk...', '...kgggggggk....',
+    '....kggkkggk....', '....kgk..kgk....', '....kkk..kkk....', '................',
+  ],
+  helmet: [
+    '................', '................', '......kkkk......', '....kkGGGGkk....',
+    '...kGGGGGGGGk...', '..kGGgGGGGGGGk..', '..kGgGGGGGGGGk..', '..kGGGGGGGGGGk..',
+    '.kkkkkkkkkkkkkk.', '.kyyyyyyyyyyyyk.', '.kkkkkkkkkkkkkk.', '...kk......kk...',
+    '....kk....kk....', '.....kkkkkk.....', '................', '................',
+  ],
+  ball: [
+    '................', '.....kkkkkk.....', '...kkwwwwwwkk...', '..kwwwkkkkwwwk..',
+    '.kwwwkkkkkkwwwk.', '.kwwwwkkkkwwwwk.', 'kwkwwwwwwwwwwkwk', 'kkkkwwwwwwwwkkkk',
+    'kkkwwwwwwwwwwkkk', 'kwwwwwkkkkwwwwwk', '.kwwwkkkkkkwwwk.', '.kwwwwkkkkwwwwk.',
+    '..kwwwwwwwwwwk..', '...kkwwwwwwkk...', '.....kkkkkk.....', '................',
+  ],
+  mask: [
+    '................', '................', '................', '................',
+    '................', '..kkkkkkkkkkkk..', '.krrrrrrrrrrrrk.', 'krrkkkrrrrkkkrrk',
+    'krkwwwkrrkwwwkrk', 'krrkkkrrrrkkkrrk', '.krrrrrkkrrrrrk.', '..kkkkk..kkkkk..',
+    '................', '................', '................', '................',
+  ],
+  castle: [
+    '................', '................', '.kk.kk....kk.kk.', '.kmkmk....kmkmk.',
+    '.kmmmk....kmmmk.', '.kmmmkkkkkkmmmk.', '.kmmmmmmmmmmmmk.', '.kmmmmmyymmmmmk.',
+    '.kmmmmmyymmmmmk.', '.kmmmmmmmmmmmmk.', '.kmmmmkkkkmmmmk.', '.kmmmkbbbbkmmmk.',
+    '.kmmmkbbbbkmmmk.', '.kkkkkbbbbkkkkk.', '................', '................',
+  ],
+  bug: [
+    '................', '................', '................', '...k........k...',
+    '....k......k....', '.....kkkkkk.....', '....kaaaaaak....', '...kahaaaahak...',
+    'kk.kaaaaaaaak.kk', '..kkaaakkaaakk..', 'kk.kaaakkaaak.kk', '..kkaaakkaaakk..',
+    'kk.kaaakkaaak.kk', '....kkkkkkkk....', '................', '................',
+  ],
 };
 
 // size is never below 128: every picture in the app is 128px or larger.
