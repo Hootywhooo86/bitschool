@@ -181,6 +181,20 @@ function tabCheck(el) {
 function tabSettings(el) {
   const s = Store.state, st = s.settings, m = st.model;
   el.innerHTML = `
+    <h2 class="sub-h">128bit family account</h2>
+    ${Account.signedIn() ? `
+      <p>Signed in as <b>${esc(Account.session.email || '')}</b>. His progress saves to the account automatically: level, booklet, scores, streak, words, story ideas and settings.</p>
+      <p class="status-line" data-sync>${Account.statusText()}</p>
+      <div class="row wrap-row"><button class="btn" data-savenow><span>SAVE NOW</span></button><button class="btn alt" data-signout><span>SIGN OUT</span></button></div>`
+    : `
+      <p class="muted">Sign in with the same email and password as 128bit Play. His progress then saves to the account and comes back on any device or after reinstalling. Recordings, handwriting pictures and the downloaded story writer stay on each device.</p>
+      <div class="form-grid">
+        <label>Email<input class="input" data-email type="email" autocomplete="username" autocapitalize="off"></label>
+        <label>Password<input class="input" data-password type="password" autocomplete="current-password"></label>
+      </div>
+      <div class="row wrap-row"><button class="btn" data-signin><span>SIGN IN</span></button></div>
+      <p class="status-line" data-signinmsg></p>`}
+
     <h2 class="sub-h">Reader</h2>
     <div class="row wrap-row"><input class="input grow" data-name value="${esc(s.child.name)}" placeholder="Reader's name" aria-label="Reader's name"><button class="btn" data-savename><span>SAVE NAME</span></button></div>
 
@@ -245,6 +259,24 @@ function tabSettings(el) {
       <button class="btn warn" data-resetall><span>RESET EVERYTHING</span></button>
     </div>`;
   const rerender = () => { Store.save(); updateTop(); tabSettings(el); };
+  if ($('[data-signin]', el)) $('[data-signin]', el).onclick = async () => {
+    const email = $('[data-email]', el).value.trim(), password = $('[data-password]', el).value;
+    if (!email || !password) return toast('Enter the email and password');
+    const msg = $('[data-signinmsg]', el), b = $('[data-signin]', el);
+    b.disabled = true; msg.textContent = 'Signing in…';
+    try {
+      const how = await Account.signIn(email, password);
+      toast(how === 'pulled' ? 'Signed in — progress loaded from the account' : 'Signed in — progress saved to the account');
+      applyTheme(); updateTop(); tabSettings(el);
+    } catch (e) { msg.textContent = '✗ ' + e.message; b.disabled = false; }
+  };
+  if ($('[data-savenow]', el)) $('[data-savenow]', el).onclick = async () => {
+    try { await Account.save(); toast('Saved'); } catch (e) { toast("Couldn't save: " + e.message); }
+  };
+  if ($('[data-signout]', el)) $('[data-signout]', el).onclick = async () => {
+    if (!confirm('Sign out? His progress stays saved in the account, and on this device.')) return;
+    await Account.signOut(); tabSettings(el);
+  };
   $('[data-savename]', el).onclick = () => { s.child.name = $('[data-name]', el).value.trim().slice(0, 30); Store.save(); toast('Name saved'); };
   $$('[data-lv]', el).forEach(b => b.onclick = () => {
     const to = Math.max(0, Math.min(LEVEL_COUNT - 1, s.level + +b.dataset.lv));
@@ -307,7 +339,8 @@ function tabSettings(el) {
     a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   };
   $('[data-resetall]', el).onclick = async () => {
-    if (!confirm('Erase all progress, words and recordings on this device?')) return;
+    if (!confirm('Erase all progress, words and recordings on this device?' + (Account.signedIn() ? ' This device signs out first, so the copy in the 128bit account is NOT erased.' : ''))) return;
+    if (Account.signedIn()) { clearTimeout(Account.timer); Account.session = null; Account.status = 'signed-out'; Account.keep(); }
     Store.reset(); await Blobs.clear().catch(() => {}); applyTheme(); sessionStorage.removeItem('bitschool.parent'); go('home'); updateTop();
   };
 }

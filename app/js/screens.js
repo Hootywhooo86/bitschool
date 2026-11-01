@@ -35,7 +35,8 @@ function screenHome() {
       ${tile('colors', 'palette', 'COLORS', 'Make it yours')}
       ${tile('parent', 'chart', 'GROWN-UPS', 'Progress & settings')}
     </section>
-    <p class="status-line" id="modelStatus">${modelStatus()}</p>`;
+    <p class="status-line" id="modelStatus">${modelStatus()}</p>
+    ${Account.signedIn() ? `<p class="status-line" data-sync>${Account.statusText()}</p>` : '<p class="status-line">○ Progress is saved on this device only. Sign in to the 128bit account in Grown-ups → Settings to keep it safe.</p>'}`;
 }
 
 // Today's goal, the streak, and the last two weeks as stars.

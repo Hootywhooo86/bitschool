@@ -37,7 +37,9 @@ const Store = {
     if (NATIVE && Device.available() && m.api === 'ollama' && /localhost|127\.0\.0\.1/.test(m.endpoint)) m.api = 'device';
     return this.state;
   },
-  save() {
+  // quiet: don't queue an account save (used when the account itself changed the state).
+  save(quiet) {
+    if (!quiet && typeof Account !== 'undefined') Account.queue();
     try { localStorage.setItem(this.key, JSON.stringify(this.state)); }
     catch (e) { // Full: drop the oldest saved story text first.
       this.state.sessions.slice(0, -50).forEach(x => delete x.text);

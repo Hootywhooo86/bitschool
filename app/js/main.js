@@ -34,9 +34,14 @@ document.addEventListener('click', e => {
 });
 
 Store.load();
+Account.load();
 applyTheme();
 window.addEventListener('hashchange', route);
 route();
+// Progress saved from another device comes in first, then the home screen shows it.
+Account.pull().then(changed => { if (changed) { applyTheme(); route(); } });
+window.addEventListener('online', () => Account.save().catch(() => {}));
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') Account.save().catch(() => {}); });
 Model.ping().then(() => {
   const ms = $('#modelStatus');
   if (ms) ms.innerHTML = modelStatus();
