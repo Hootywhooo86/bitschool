@@ -84,6 +84,8 @@ h3{font-family:var(--pixel);font-size:13px;line-height:1.6;margin-bottom:12px}
 .w.stumble{background:color-mix(in srgb,var(--accent2) 30%,transparent);border-bottom-color:var(--accent2)}
 .w.skipped{background:color-mix(in srgb,var(--bad) 28%,transparent);border-bottom-color:var(--bad)}
 .w.unheard{border-bottom:4px dotted var(--muted);color:var(--muted)}
+@keyframes pulse{50%{transform:scale(1.06)}}
+.btn.pulse{animation:pulse 1s ease-in-out infinite}
 .w.cur{outline:3px dashed var(--accent2);outline-offset:2px}
 .w.tts{background:var(--accent2);color:var(--on-accent2)}
 .stats-line{display:flex;gap:24px;flex-wrap:wrap;font-family:var(--pixel);font-size:12px;color:var(--muted);line-height:1.8}

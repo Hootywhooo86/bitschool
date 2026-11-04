@@ -216,6 +216,18 @@ function storyHTML(toks, title) {
   return html + '</p>';
 }
 
+// Keeps the screen on while he reads. Android app: the Listen plugin sets the window's keep-screen-on
+// flag; browsers that support it get a screen wake lock.
+let wakeLock = null;
+async function keepAwake(on) {
+  const listen = nativePlugin('Listen');
+  try {
+    if (listen) await listen.keepScreenOn({ on });
+    else if (on && navigator.wakeLock) wakeLock = await navigator.wakeLock.request('screen');
+    else if (!on && wakeLock) { await wakeLock.release(); wakeLock = null; }
+  } catch (e) {}
+}
+
 async function startRecorder() {
   if (!navigator.mediaDevices || !window.MediaRecorder) return null;
   try {
@@ -242,7 +254,7 @@ function mountReader(el, passage, { onDone, nextLabel = 'NEXT ▶' }) {
   let running = false, finished = false, t0 = 0, firstHeard = 0, lastHeard = 0, timer, recog, recorder;
   let doneHeard = [], sessionHeard = [], state = { status: toks.map(() => 'unread'), p: 0 };
   const helperMissed = new Set();
-  let fixing = false, lastRun = { seconds: 0, minutes: 1 }, lastRecId = null;
+  let fixing = false, lastRun = { seconds: 0, minutes: 1 }, lastRecId = null, reachedEnd = false;
 
   el.innerHTML = `
     <div class="row wrap-row">
@@ -289,7 +301,11 @@ function mountReader(el, passage, { onDone, nextLabel = 'NEXT ▶' }) {
     paint();
     const cur = spans[Math.min(state.p, spans.length - 1)];
     if (cur && state.p !== before) cur.scrollIntoView({ block: 'center', behavior: 'smooth' });
-    if (state.p >= toks.length) setTimeout(() => running && finish(), 900);
+    if (state.p >= toks.length && !reachedEnd) {
+      reachedEnd = true;
+      $('[data-r-hint]', el).textContent = 'You read to the end! Tap I\'M DONE when you\'re finished.';
+      btn('done').classList.add('pulse');
+    }
   }
 
   function startRecog() {
@@ -314,7 +330,9 @@ function mountReader(el, passage, { onDone, nextLabel = 'NEXT ▶' }) {
   async function start() {
     if (running) return;
     Speech.stop();
-    running = true; finished = false; fixing = false; lastRecId = null; t0 = Date.now(); firstHeard = lastHeard = 0;
+    running = true; finished = false; fixing = false; reachedEnd = false; lastRecId = null; t0 = Date.now(); firstHeard = lastHeard = 0;
+    btn('done').classList.remove('pulse');
+    keepAwake(true);
     doneHeard = []; sessionHeard = []; helperMissed.clear(); state = { status: toks.map(() => 'unread'), p: 0 };
     $('.read-result', el).classList.add('hidden');
     btn('start').classList.add('hidden'); btn('listen').classList.add('hidden'); btn('mode').classList.add('hidden');
@@ -336,6 +354,7 @@ function mountReader(el, passage, { onDone, nextLabel = 'NEXT ▶' }) {
   async function finish() {
     if (!running) return;
     running = false; finished = true; fixing = false; clearInterval(timer);
+    keepAwake(false); btn('done').classList.remove('pulse');
     if (recog) { recog.onend = null; try { recog.stop(); } catch (e) {} }
     const end = Date.now();
     // Words after the last one heard: the app may have stopped hearing him, so they're "unheard".
@@ -407,7 +426,7 @@ function mountReader(el, passage, { onDone, nextLabel = 'NEXT ▶' }) {
     else if (finished && fixing) { state.status[i] = state.status[i] === 'read' ? 'skipped' : 'read'; paint(); showResult(); }
     else if (!running) showWord(toks[i].raw, passage);
   });
-  onLeave(() => { running = false; clearInterval(timer); if (recog) { recog.onend = null; try { recog.abort(); } catch (e) {} } });
+  onLeave(() => { running = false; keepAwake(false); clearInterval(timer); if (recog) { recog.onend = null; try { recog.abort(); } catch (e) {} } });
 }
 
 // Tap a word: hear it, see its meaning. Looked-up words come back in Word Review.

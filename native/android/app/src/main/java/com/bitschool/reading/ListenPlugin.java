@@ -10,6 +10,7 @@ import android.os.Looper;
 import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
+import android.view.WindowManager;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.PermissionState;
 import com.getcapacitor.Plugin;
@@ -172,6 +173,17 @@ public class ListenPlugin extends Plugin {
         active = false;
         mute(false);
         notifyListeners("end", new JSObject());
+    }
+
+    // Reading can take a few minutes; the screen sleeping would pause the app and the microphone.
+    @PluginMethod
+    public void keepScreenOn(PluginCall call) {
+        boolean on = call.getBoolean("on", false);
+        getActivity().runOnUiThread(() -> {
+            if (on) getActivity().getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            else getActivity().getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+            call.resolve();
+        });
     }
 
     @PluginMethod
