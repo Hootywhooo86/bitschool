@@ -221,6 +221,18 @@ function tabSettings(el) {
     </div>
     <div class="row wrap-row"><button class="btn alt ${st.allowSkipRead ? 'on' : ''}" data-skip><span>SKIP READ-ALOUD ALLOWED: ${st.allowSkipRead ? 'ON' : 'OFF'}</span></button></div>
 
+    <h2 class="sub-h">Reading voice</h2>
+    <p class="muted">The voice that reads stories and words to him. The most natural-sounding voice on this device is picked automatically; choose another here. More voices: on Android, Settings → Text-to-speech → install voice data; on Windows, Settings → Time & language → Speech.</p>
+    <div class="row wrap-row">
+      <select class="input grow" data-voice aria-label="Reading voice"><option>Loading voices…</option></select>
+      <button class="btn alt" data-voicetest>${icon('speaker')}<span>HEAR IT</span></button>
+    </div>
+    <div class="row wrap-row">
+      <button class="btn alt" data-speed="-0.1"><span>SLOWER</span></button>
+      <div class="stat"><b>${Math.round(st.voiceSpeed * 100)}%</b><span>VOICE SPEED</span></div>
+      <button class="btn alt" data-speed="0.1"><span>FASTER</span></button>
+    </div>
+
     <h2 class="sub-h">Story ideas</h2>
     <p class="muted">Before each Story sheet he picks what it's about: superheroes, missions, space bugs, robots and more. Add his favorites here, like a hero, game or show. Stories stay kid-safe: action is fine, but no blood, nobody dies, no swearing, and any story that slips is thrown out and rewritten.</p>
     <div class="idea-list">${st.storyIdeas.map((t, k) => `<span class="idea-chip">${esc(t)}<button class="btn warn" data-delidea="${k}"><span>REMOVE</span></button></span>`).join('') || '<p class="muted">No ideas added yet.</p>'}</div>
@@ -259,6 +271,15 @@ function tabSettings(el) {
       <button class="btn warn" data-resetall><span>RESET EVERYTHING</span></button>
     </div>`;
   const rerender = () => { Store.save(); updateTop(); tabSettings(el); };
+  Voices.all().then(list => {
+    const sel = $('[data-voice]', el);
+    if (!sel) return;
+    const cur = Voices.chosenNow();
+    sel.innerHTML = list.length ? list.map(v => `<option value="${esc(v.name)}" ${cur && v.name === cur.name ? 'selected' : ''}>${esc(Voices.label(v))}</option>`).join('') : '<option>No English voices found</option>';
+    sel.onchange = () => { st.voice = sel.value; Store.save(); Speech.say('Hi! I will read your stories with this voice.'); };
+  });
+  $('[data-voicetest]', el).onclick = () => Speech.say('Sam ran up the hill. The sun was hot, so he got a cold sip of water.');
+  $$('[data-speed]', el).forEach(b => b.onclick = () => { st.voiceSpeed = Math.round(Math.max(0.6, Math.min(1.4, st.voiceSpeed + +b.dataset.speed)) * 10) / 10; rerender(); Speech.say('This is my new speed.'); });
   if ($('[data-signin]', el)) $('[data-signin]', el).onclick = async () => {
     const email = $('[data-email]', el).value.trim(), password = $('[data-password]', el).value;
     if (!email || !password) return toast('Enter the email and password');

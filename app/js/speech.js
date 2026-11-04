@@ -4,11 +4,49 @@
 const NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 const nativePlugin = name => (NATIVE && window.Capacitor.Plugins && window.Capacitor.Plugins[name]) || null;
 const IN_ELECTRON = /Electron/.test(navigator.userAgent);
-const SR = nativePlugin('SpeechRecognition') ? nativeRecognizer() : NATIVE || IN_ELECTRON ? null : (window.SpeechRecognition || window.webkitSpeechRecognition);
+const SR = nativePlugin('Listen') ? listenRecognizer() : nativePlugin('SpeechRecognition') ? nativeRecognizer() : NATIVE || IN_ELECTRON ? null : (window.SpeechRecognition || window.webkitSpeechRecognition);
 const NativeTTS = nativePlugin('TextToSpeech');
 const NUMBERS = 'zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty'.split(' ');
 
-// Wraps the Android speech plugin in the same shape as the browser's SpeechRecognition.
+// The app's own Android listener (ListenPlugin.java): keeps the recognizer running through pauses and
+// numbers each utterance, so everything heard so far is kept when the recognizer restarts.
+function listenRecognizer() {
+  const plugin = nativePlugin('Listen');
+  let warned = false;
+  return class ListenRecognition {
+    constructor() { this.lang = 'en-US'; this.continuous = false; this.interimResults = false; this._text = {}; this._final = {}; this._handles = []; this._live = false; }
+    async start() {
+      this._live = true; this._text = {}; this._final = {};
+      const on = async (event, fn) => { this._handles.push(await plugin.addListener(event, fn)); };
+      try {
+        await on('partial', d => { if (this._live) { this._text[d.utterance] = d.text; this._emit(); } });
+        await on('final', d => { if (this._live) { if (d.text) this._text[d.utterance] = d.text; this._final[d.utterance] = true; this._emit(); } });
+        await on('error', d => this._fail(d.error));
+        await on('warning', d => { if (d.error === 'network' && !warned) { warned = true; toast('Listening works best with internet on this phone'); } });
+        await on('end', () => this._end());
+        await plugin.start({ language: this.lang, continuous: this.continuous });
+      } catch (e) { this._fail(String((e && e.message) || e)); }
+    }
+    _emit() {
+      const keys = Object.keys(this._text).map(Number).sort((a, b) => a - b);
+      const results = keys.map(k => Object.assign([{ transcript: this._text[k] }], { isFinal: !!this._final[k] }));
+      if (this.onresult) this.onresult({ results });
+    }
+    _end() {
+      if (!this._live) return;
+      this._live = false;
+      Object.keys(this._text).forEach(k => { this._final[k] = true; });
+      this._emit(); this._cleanup();
+      if (this.onend) this.onend();
+    }
+    _fail(error) { this._live = false; this._cleanup(); if (this.onerror) this.onerror({ error }); if (this.onend) this.onend(); }
+    _cleanup() { this._handles.forEach(h => h.remove()); this._handles = []; }
+    stop() { plugin.stop().catch(() => {}); setTimeout(() => this._end(), 1500); }
+    abort() { this._live = false; this._cleanup(); plugin.abort().catch(() => {}); }
+  };
+}
+
+// Wraps the community Android speech plugin in the same shape as the browser's SpeechRecognition.
 function nativeRecognizer() {
   const plugin = nativePlugin('SpeechRecognition');
   return class NativeRecognition {
@@ -34,23 +72,61 @@ function nativeRecognizer() {
   };
 }
 
+// Reading voices: the grown-up's pick from Settings, or the most natural-sounding English voice installed.
+const Voices = {
+  list: null,
+  async all() {
+    if (this.list) return this.list;
+    let raw = [];
+    try {
+      if (NativeTTS) raw = ((await NativeTTS.getSupportedVoices()).voices || []).map((v, index) => ({ index, name: v.name || v.voiceURI, lang: v.lang, local: v.localService }));
+      else if (window.speechSynthesis) {
+        let vs = speechSynthesis.getVoices();
+        if (!vs.length) vs = await new Promise(res => { speechSynthesis.onvoiceschanged = () => res(speechSynthesis.getVoices()); setTimeout(() => res(speechSynthesis.getVoices()), 1500); });
+        raw = vs.map((voice, index) => ({ index, name: voice.name, lang: voice.lang, local: voice.localService, voice }));
+      }
+    } catch (e) {}
+    this.list = raw.filter(v => /^en[-_]/i.test(v.lang || '')).sort((a, b) => this.score(b) - this.score(a));
+    return this.list;
+  },
+  // Higher is more natural: neural/network voices first, then US English.
+  score(v) {
+    const n = (v.name || '').toLowerCase();
+    return (/neural|natural|premium|enhanced|wavenet|network|online/.test(n) ? 4 : 0) + (/google/.test(n) ? 1 : 0)
+      + (/^en[-_]us/i.test(v.lang) ? 2 : 0) + (/compact|espeak/.test(n) ? -3 : 0);
+  },
+  async chosen() {
+    const all = await this.all(), want = Store.state && Store.state.settings.voice;
+    return all.find(v => v.name === want) || all[0] || null;
+  },
+  chosenNow() {
+    if (!this.list) { this.all(); return null; }
+    const want = Store.state && Store.state.settings.voice;
+    return this.list.find(v => v.name === want) || this.list[0] || null;
+  },
+  label(v) { return (v.name || '').replace(/^Microsoft |^Google /, '') + ' · ' + v.lang + (/network|online|natural|neural/i.test(v.name) ? ' · natural' : ''); },
+};
+
 const Speech = {
   canListen: !!SR,
   canSpeak: !!NativeTTS || 'speechSynthesis' in window,
   // The Android recognizer and the recorder cannot share the microphone, so recordings there come from helper mode.
-  canRecordWhileListening: !SR || !nativePlugin('SpeechRecognition'),
+  canRecordWhileListening: !nativePlugin('Listen') && !nativePlugin('SpeechRecognition'),
   stop() {
     if (NativeTTS) NativeTTS.stop().catch(() => {});
     else if (window.speechSynthesis) speechSynthesis.cancel();
   },
-  say(text, { rate = 0.9, onboundary, onend } = {}) {
+  say(text, { rate, onboundary, onend } = {}) {
     if (!this.canSpeak) { toast('This device cannot read aloud'); return; }
     this.stop();
+    // Callers pass their own pace (slow for single words); the grown-up's speed setting scales it.
+    rate = (rate || 0.9) * ((Store.state && Store.state.settings.voiceSpeed) || 1);
     if (NativeTTS) {
       let h;
       (async () => {
         if (onboundary) h = await NativeTTS.addListener('onRangeStart', r => onboundary({ charIndex: r.start }));
-        try { await NativeTTS.speak({ text, lang: 'en-US', rate, category: 'playback' }); } catch (e) {}
+        const v = await Voices.chosen();
+        try { await NativeTTS.speak({ text, lang: (v && v.lang) || 'en-US', rate, category: 'playback', ...(v ? { voice: v.index } : {}) }); } catch (e) {}
         if (h) h.remove();
         if (onend) onend();
       })();
@@ -58,6 +134,8 @@ const Speech = {
     }
     const u = new SpeechSynthesisUtterance(text);
     u.rate = rate; u.lang = 'en-US';
+    const v = Voices.chosenNow();
+    if (v && v.voice) { u.voice = v.voice; u.lang = v.lang; }
     if (onboundary) u.onboundary = onboundary;
     if (onend) { u.onend = onend; u.onerror = onend; }
     speechSynthesis.speak(u);
@@ -90,21 +168,34 @@ function sameWord(a, b) {
   return a.replace(/s$/, '') === b.replace(/s$/, '');
 }
 
-// Follows the reader through the passage. Heard words are matched to the text a few words ahead;
-// jumped-over words are skipped, and a word reached only after wrong attempts is a stumble.
+// Follows the reader through the passage. Heard words are matched a few words ahead; jumped-over
+// words are skipped, and a word reached only after wrong attempts is a stumble. When the recognizer
+// drops a stretch of audio, the reader is found again further ahead (two heard words in a row, or one
+// long word, matching the story), and the words in between are "unheard": the app missed them, so
+// they don't count against him.
+const RESYNC_WINDOW = 40;
 function align(toks, heard) {
   const status = toks.map(() => 'unread');
   let p = 0, wrong = 0;
-  for (const h of heard) {
+  for (let i = 0; i < heard.length; i++) {
+    const h = heard[i];
     if (!h) continue;
-    let hit = -1;
+    let hit = -1, jump = false;
     for (let j = p; j < Math.min(p + 4, toks.length); j++) if (sameWord(toks[j].n, h)) { hit = j; break; }
+    if (hit < 0) {
+      const next = heard[i + 1];
+      for (let j = p + 4; j < Math.min(p + RESYNC_WINDOW, toks.length); j++) {
+        if (!sameWord(toks[j].n, h)) continue;
+        const confirmed = next ? (j + 1 < toks.length && sameWord(toks[j + 1].n, next)) : h.length >= 5;
+        if (confirmed || (h.length >= 6 && !STOPWORDS.has(h))) { hit = j; jump = true; break; }
+      }
+    }
     if (hit < 0) {
       if (p > 0 && sameWord(toks[p - 1].n, h)) continue; // a repeat is fine
       wrong++; continue;
     }
-    for (let k = p; k < hit; k++) status[k] = 'skipped';
-    status[hit] = wrong > 0 ? 'stumble' : 'read';
+    for (let k = p; k < hit; k++) status[k] = jump ? 'unheard' : 'skipped';
+    status[hit] = wrong > 0 && !jump ? 'stumble' : 'read';
     p = hit + 1; wrong = 0;
   }
   return { status, p };
@@ -151,6 +242,7 @@ function mountReader(el, passage, { onDone, nextLabel = 'NEXT ▶' }) {
   let running = false, finished = false, t0 = 0, firstHeard = 0, lastHeard = 0, timer, recog, recorder;
   let doneHeard = [], sessionHeard = [], state = { status: toks.map(() => 'unread'), p: 0 };
   const helperMissed = new Set();
+  let fixing = false, lastRun = { seconds: 0, minutes: 1 }, lastRecId = null;
 
   el.innerHTML = `
     <div class="row wrap-row">
@@ -175,7 +267,7 @@ function mountReader(el, passage, { onDone, nextLabel = 'NEXT ▶' }) {
 
   function paint() {
     spans.forEach((s, i) => {
-      const st = mode === 'helper' ? (helperMissed.has(i) ? 'skipped' : 'unread') : state.status[i];
+      const st = finished || mode === 'mic' ? state.status[i] : helperMissed.has(i) ? 'skipped' : 'unread';
       s.className = 'w ' + st + (running && mode === 'mic' && i === state.p ? ' cur' : '');
     });
   }
@@ -222,7 +314,7 @@ function mountReader(el, passage, { onDone, nextLabel = 'NEXT ▶' }) {
   async function start() {
     if (running) return;
     Speech.stop();
-    running = true; finished = false; t0 = Date.now(); firstHeard = lastHeard = 0;
+    running = true; finished = false; fixing = false; lastRecId = null; t0 = Date.now(); firstHeard = lastHeard = 0;
     doneHeard = []; sessionHeard = []; helperMissed.clear(); state = { status: toks.map(() => 'unread'), p: 0 };
     $('.read-result', el).classList.add('hidden');
     btn('start').classList.add('hidden'); btn('listen').classList.add('hidden'); btn('mode').classList.add('hidden');
@@ -243,41 +335,55 @@ function mountReader(el, passage, { onDone, nextLabel = 'NEXT ▶' }) {
 
   async function finish() {
     if (!running) return;
-    running = false; finished = true; clearInterval(timer);
+    running = false; finished = true; fixing = false; clearInterval(timer);
     if (recog) { recog.onend = null; try { recog.stop(); } catch (e) {} }
     const end = Date.now();
-    let status;
-    if (mode === 'mic') status = state.status.map(s => s === 'unread' ? 'skipped' : s);
-    else status = toks.map((_, i) => helperMissed.has(i) ? 'skipped' : 'read');
-    state.status = status;
-    const read = status.filter(s => s === 'read').length, stumble = status.filter(s => s === 'stumble').length;
-    const accuracy = Math.round((read + stumble * 0.5) / toks.length * 100);
+    // Words after the last one heard: the app may have stopped hearing him, so they're "unheard".
+    if (mode === 'mic') state.status = state.status.map(s => s === 'unread' ? 'unheard' : s);
+    else state.status = toks.map((_, i) => helperMissed.has(i) ? 'skipped' : 'read');
     const minutes = mode === 'mic' && firstHeard ? Math.max((lastHeard || end) - firstHeard, 1000) / 60000 : (end - t0) / 60000;
-    const wpm = Math.min(300, Math.round((read + stumble) / Math.max(minutes, 5 / 60))); // a tap on DONE right away is not a reading speed
-    const missed = [...new Set(status.map((s, i) => s !== 'read' ? toks[i].raw.replace(/^[^A-Za-z0-9]+|[^A-Za-z0-9]+$/g, '') : null).filter(Boolean))];
-    let recId = null;
     if (recorder) {
       const blob = await recorder.stop();
-      if (blob) { recId = 'rec-' + uid(); try { await Blobs.put(recId, blob); } catch (e) { recId = null; } }
+      if (blob) { lastRecId = 'rec-' + uid(); try { await Blobs.put(lastRecId, blob); } catch (e) { lastRecId = null; } }
     }
-    paint();
+    lastRun = { seconds: Math.round((end - t0) / 1000), minutes };
     btn('done').classList.add('hidden'); btn('start').classList.remove('hidden'); btn('listen').classList.remove('hidden'); btn('mode').classList.remove('hidden');
     $('span', btn('start')).textContent = 'READ AGAIN';
-    paintMode();
-    const result = { mode, seconds: Math.round((end - t0) / 1000), wpm, accuracy, total: toks.length, missed, recId, skipped: false };
-    const box = $('.read-result', el);
+    paintMode(); paint(); showResult();
+    $('.read-result', el).scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }
+
+  // Scores from the word marks. Words the app didn't hear only count once a grown-up says how they went.
+  function resultNow() {
+    const st = state.status, n = k => st.filter(x => x === k).length;
+    const read = n('read'), stumble = n('stumble'), skipped = n('skipped'), unheard = n('unheard');
+    const judged = read + stumble + skipped;
+    const accuracy = judged ? Math.round((read + stumble * 0.5) / judged * 100) : 0;
+    const wpm = Math.min(300, Math.round((read + stumble) / Math.max(lastRun.minutes, 5 / 60))); // a tap on DONE right away is not a reading speed
+    const missed = [...new Set(st.map((s, i) => s === 'skipped' || s === 'stumble' ? toks[i].raw.replace(/^[^A-Za-z0-9]+|[^A-Za-z0-9]+$/g, '') : null).filter(Boolean))];
+    return { mode, seconds: lastRun.seconds, wpm, accuracy, total: toks.length, heard: judged, unheard, missed, recId: lastRecId, skipped: false };
+  }
+
+  function showResult() {
+    const result = resultNow(), box = $('.read-result', el);
+    const mostlyMissed = result.unheard > toks.length * 0.25;
     box.classList.remove('hidden');
     box.innerHTML = `
       <div class="tiles-row">
-        <div class="stat"><b>${wpm}</b><span>WORDS / MIN</span></div>
-        <div class="stat"><b>${accuracy}%</b><span>ACCURACY</span></div>
+        <div class="stat"><b>${result.wpm}</b><span>WORDS / MIN</span></div>
+        <div class="stat"><b>${result.accuracy}%</b><span>ACCURACY</span></div>
         <div class="stat"><b>${fmtTime(result.seconds)}</b><span>TIME</span></div>
       </div>
-      ${missed.length ? `<p class="muted">Words to practice: ${missed.map(w => `<button class="chip" data-word="${esc(w)}">${esc(w)}</button>`).join(' ')}</p>` : '<p class="good">Every word read! ⭐</p>'}
+      ${result.unheard ? `<div class="feedback wait"><p>${mostlyMissed ? 'The app missed a lot of your reading — sorry!' : `The app didn't hear ${result.unheard} word${result.unheard > 1 ? 's' : ''} (dotted).`} A grown-up can fix it — no need to read it again.</p></div>
+        <div class="row wrap-row"><button class="btn" data-r="allread"><span>HE READ THEM — MARK AS READ</span></button></div>` : ''}
+      <div class="row wrap-row"><button class="btn alt ${fixing ? 'on' : ''}" data-r="fix"><span>${fixing ? 'DONE FIXING' : 'GROWN-UP: FIX WORDS'}</span></button></div>
+      ${fixing ? '<p class="muted">Tap a word to switch it between read (green) and missed (red).</p>' : ''}
+      ${result.missed.length ? `<p class="muted">Words to practice: ${result.missed.map(w => `<button class="chip" data-word="${esc(w)}">${esc(w)}</button>`).join(' ')}</p>` : result.unheard ? '' : '<p class="good">Every word read! ⭐</p>'}
       <button class="btn" data-r="next"><span>${esc(nextLabel)}</span></button>`;
     $$('[data-word]', box).forEach(b => b.onclick = () => showWord(b.dataset.word, passage));
-    $('[data-r="next"]', box).onclick = () => onDone(result);
-    box.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    if ($('[data-r="allread"]', box)) $('[data-r="allread"]', box).onclick = () => { state.status = state.status.map(s => s === 'unheard' ? 'read' : s); paint(); showResult(); };
+    $('[data-r="fix"]', box).onclick = () => { fixing = !fixing; showResult(); };
+    $('[data-r="next"]', box).onclick = () => onDone(resultNow());
   }
 
   btn('start').onclick = start;
@@ -298,6 +404,7 @@ function mountReader(el, passage, { onDone, nextLabel = 'NEXT ▶' }) {
   if (btn('skip')) btn('skip').onclick = () => { running = false; clearInterval(timer); onDone({ skipped: true, missed: [] }); };
   spans.forEach((s, i) => s.onclick = () => {
     if (running && mode === 'helper') { helperMissed.has(i) ? helperMissed.delete(i) : helperMissed.add(i); paint(); }
+    else if (finished && fixing) { state.status[i] = state.status[i] === 'read' ? 'skipped' : 'read'; paint(); showResult(); }
     else if (!running) showWord(toks[i].raw, passage);
   });
   onLeave(() => { running = false; clearInterval(timer); if (recog) { recog.onend = null; try { recog.abort(); } catch (e) {} } });

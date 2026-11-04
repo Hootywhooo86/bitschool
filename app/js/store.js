@@ -20,7 +20,7 @@ const Store = {
       child: { name: '' },
       placed: false, level: 0, booklet: null,
       settings: {
-        passMark: 85, sheetsPerBooklet: 6, dailyGoal: 2, storyIdeas: [], ownIdeas: true, allowSkipRead: false, readSize: 30,
+        passMark: 85, sheetsPerBooklet: 6, dailyGoal: 2, voice: '', voiceSpeed: 1, storyIdeas: [], ownIdeas: true, allowSkipRead: false, readSize: 30,
         theme: { ...THEMES.chalkboard }, themeName: 'chalkboard',
         model: { endpoint: 'http://localhost:11434', api: Device.available() ? 'device' : 'ollama', name: 'qwen3:8b', vision: '', device: '' },
       },
