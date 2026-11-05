@@ -36,6 +36,7 @@ public class ListenPlugin extends Plugin {
     private int utterance = 0;
     private int busyErrors = 0;
     private String language = "en-US";
+    private ArrayList<String> expect = new ArrayList<>();
 
     @PluginMethod
     public void available(PluginCall call) {
@@ -62,6 +63,11 @@ public class ListenPlugin extends Plugin {
     private void begin(PluginCall call) {
         language = call.getString("language", "en-US");
         continuous = call.getBoolean("continuous", true);
+        expect = new ArrayList<>();
+        try {
+            com.getcapacitor.JSArray list = call.getArray("expect");
+            if (list != null) for (int k = 0; k < list.length() && k < 300; k++) expect.add(list.getString(k));
+        } catch (Exception e) { /* no word list: plain recognition */ }
         main.post(() -> {
             if (!SpeechRecognizer.isRecognitionAvailable(getContext())) {
                 call.reject("service-not-allowed");
@@ -92,6 +98,8 @@ public class ListenPlugin extends Plugin {
         i.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 4000L);
         i.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 15000L);
         i.putExtra("android.speech.extra.DICTATION_MODE", true);
+        // Android 13+: lean toward the words in the story he's reading.
+        if (android.os.Build.VERSION.SDK_INT >= 33 && !expect.isEmpty()) i.putStringArrayListExtra(RecognizerIntent.EXTRA_BIASING_STRINGS, expect);
         return i;
     }
 

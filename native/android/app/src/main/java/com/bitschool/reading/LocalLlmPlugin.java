@@ -48,7 +48,7 @@ public class LocalLlmPlugin extends Plugin {
 
     // Only plain file names: models live in one folder.
     private File modelFile(String name) {
-        if (name == null || !name.matches("[A-Za-z0-9._-]+\\.gguf")) return null;
+        if (name == null || !name.matches("[A-Za-z0-9._-]+\\.(gguf|bin)")) return null;
         return new File(dir(), name);
     }
 
@@ -60,7 +60,7 @@ public class LocalLlmPlugin extends Plugin {
         JSArray files = new JSArray();
         File[] list = dir().listFiles();
         if (list != null) for (File f : list) {
-            if (!f.getName().endsWith(".gguf")) continue;
+            if (!f.getName().endsWith(".gguf") && !f.getName().endsWith(".bin")) continue;
             JSObject o = new JSObject();
             o.put("file", f.getName());
             o.put("size", f.length());

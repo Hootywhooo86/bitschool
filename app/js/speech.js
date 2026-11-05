@@ -4,27 +4,46 @@
 const NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 const nativePlugin = name => (NATIVE && window.Capacitor.Plugins && window.Capacitor.Plugins[name]) || null;
 const IN_ELECTRON = /Electron/.test(navigator.userAgent);
-const SR = nativePlugin('Listen') ? listenRecognizer() : nativePlugin('SpeechRecognition') ? nativeRecognizer() : NATIVE || IN_ELECTRON ? null : (window.SpeechRecognition || window.webkitSpeechRecognition);
+const PHONE_SR = nativePlugin('Listen') ? streamRecognizer('Listen', 1500) : nativePlugin('SpeechRecognition') ? nativeRecognizer() : NATIVE || IN_ELECTRON ? null : (window.SpeechRecognition || window.webkitSpeechRecognition);
+// Whisper models for listening (downloaded in Settings, run on the phone by WhisperPlugin.java).
+const WHISPER_HF = 'https://huggingface.co/ggerganov/whisper.cpp/resolve/main/';
+const LISTEN_MODELS = [
+  { id: 'whisper-base', name: 'Whisper base', file: 'ggml-base.en-q8_0.bin', url: WHISPER_HF + 'ggml-base.en-q8_0.bin', size: 81781811, ramGB: 2, note: 'Best listening. Hears kids reading far better than the phone\'s own listener, especially with pauses and background noise.' },
+  { id: 'whisper-tiny', name: 'Whisper tiny', file: 'ggml-tiny.en-q8_0.bin', url: WHISPER_HF + 'ggml-tiny.en-q8_0.bin', size: 43550795, ramGB: 1, note: 'Lighter and faster, for older phones. Nearly as good.' },
+];
+let whisperClass = null;
+// The listener in use: Whisper when it's chosen and downloaded, else the phone's own.
+function currentSR() {
+  const st = Store.state && Store.state.settings, m = st && LISTEN_MODELS.find(x => x.id === st.listener);
+  if (m && nativePlugin('Whisper') && Device.has(m)) {
+    if (!whisperClass || whisperClass.model !== m) { whisperClass = streamRecognizer('Whisper', 20000, m); whisperClass.model = m; }
+    return whisperClass;
+  }
+  return PHONE_SR;
+}
 const NativeTTS = nativePlugin('TextToSpeech');
 const NUMBERS = 'zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen twenty'.split(' ');
 
-// The app's own Android listener (ListenPlugin.java): keeps the recognizer running through pauses and
-// numbers each utterance, so everything heard so far is kept when the recognizer restarts.
-function listenRecognizer() {
-  const plugin = nativePlugin('Listen');
+// The app's own Android listeners, in the shape of the browser's SpeechRecognition. Listen
+// (ListenPlugin.java) keeps the phone's recognizer running through pauses; Whisper (WhisperPlugin.java)
+// records the microphone and transcribes on the phone, steered by the story text. Both number each
+// utterance, so everything heard is kept. stop() resolves once the last words are in (and, for Whisper,
+// with the recording).
+function streamRecognizer(name, settleMs, model) {
+  const plugin = nativePlugin(name);
   let warned = false;
-  return class ListenRecognition {
+  return class StreamRecognition {
     constructor() { this.lang = 'en-US'; this.continuous = false; this.interimResults = false; this._text = {}; this._final = {}; this._handles = []; this._live = false; }
     async start() {
       this._live = true; this._text = {}; this._final = {};
       const on = async (event, fn) => { this._handles.push(await plugin.addListener(event, fn)); };
       try {
         await on('partial', d => { if (this._live) { this._text[d.utterance] = d.text; this._emit(); } });
-        await on('final', d => { if (this._live) { if (d.text) this._text[d.utterance] = d.text; this._final[d.utterance] = true; this._emit(); } });
+        await on('final', d => { if (this._live) { if (d.text) this._text[d.utterance] = d.text; this._final[d.utterance] = true; this._emit(); if (!this.continuous && model && d.text) this.stop(); } });
         await on('error', d => this._fail(d.error));
         await on('warning', d => { if (d.error === 'network' && !warned) { warned = true; toast('Listening works best with internet on this phone'); } });
         await on('end', () => this._end());
-        await plugin.start({ language: this.lang, continuous: this.continuous });
+        await plugin.start(model ? { file: model.file, story: this.story || '' } : { language: this.lang, continuous: this.continuous, expect: this.expect || [] });
       } catch (e) { this._fail(String((e && e.message) || e)); }
     }
     _emit() {
@@ -33,6 +52,7 @@ function listenRecognizer() {
       if (this.onresult) this.onresult({ results });
     }
     _end() {
+      if (this._settle) { this._settle(); this._settle = null; }
       if (!this._live) return;
       this._live = false;
       Object.keys(this._text).forEach(k => { this._final[k] = true; });
@@ -41,7 +61,12 @@ function listenRecognizer() {
     }
     _fail(error) { this._live = false; this._cleanup(); if (this.onerror) this.onerror({ error }); if (this.onend) this.onend(); }
     _cleanup() { this._handles.forEach(h => h.remove()); this._handles = []; }
-    stop() { plugin.stop().catch(() => {}); setTimeout(() => this._end(), 1500); }
+    stop() {
+      if (!this._live) return Promise.resolve({}); // already finished: nothing to wait for
+      const ended = new Promise(res => { this._settle = res; setTimeout(res, settleMs); });
+      const stopped = plugin.stop().catch(() => ({}));
+      return Promise.all([stopped, ended]).then(([r]) => { this._end(); return r || {}; });
+    }
     abort() { this._live = false; this._cleanup(); plugin.abort().catch(() => {}); }
   };
 }
@@ -108,9 +133,10 @@ const Voices = {
 };
 
 const Speech = {
-  canListen: !!SR,
+  get canListen() { return !!currentSR(); },
   canSpeak: !!NativeTTS || 'speechSynthesis' in window,
   // The Android recognizer and the recorder cannot share the microphone, so recordings there come from helper mode.
+  // The phone's recognizer and a recorder can't share the microphone; Whisper records for itself.
   canRecordWhileListening: !nativePlugin('Listen') && !nativePlugin('SpeechRecognition'),
   stop() {
     if (NativeTTS) NativeTTS.stop().catch(() => {});
@@ -144,8 +170,9 @@ const Speech = {
   // One spoken answer, as text.
   listenOnce(timeout = 10000) {
     return new Promise((res, rej) => {
-      if (!SR) return rej(new Error('Speech recognition is not available in this browser'));
-      const r = new SR();
+      const R = currentSR();
+      if (!R) return rej(new Error('Speech recognition is not available in this browser'));
+      const r = new R();
       r.lang = 'en-US'; r.interimResults = false; r.maxAlternatives = 1;
       let said = '';
       const timer = setTimeout(() => r.stop(), timeout);
@@ -162,11 +189,28 @@ function speechNorm(w) {
   const n = norm(w);
   return /^\d+$/.test(n) && NUMBERS[+n] ? NUMBERS[+n] : n;
 }
+// A rough "sounds like" key: silent letters dropped, look-alike sounds merged, vowels after the
+// first letter removed. So read/red, there/their, knight/night, phone/fone share a key.
+function soundKey(w) {
+  let k = w.replace(/^kn|^gn|^pn/, 'n').replace(/^wr/, 'r').replace(/^wh/, 'w').replace(/ph/g, 'f').replace(/ck/g, 'k')
+    .replace(/gh/g, '').replace(/c(?=[eiy])/g, 's').replace(/c/g, 'k').replace(/q/g, 'k').replace(/x/g, 'ks').replace(/z/g, 's')
+    .replace(/(.)\1+/g, '$1');
+  return k[0] + k.slice(1).replace(/[aeiouyw]/g, '');
+}
 function sameWord(a, b) {
   if (a === b) return true;
   if (a.length >= 4 && b.length >= 4 && levenshtein(a, b) <= 1) return true;
-  return a.replace(/s$/, '') === b.replace(/s$/, '');
+  if (a.replace(/s$/, '') === b.replace(/s$/, '')) return true;
+  // Sound-alikes must also share their first vowel, so cat/kit or cat/cut stay different words.
+  const v = w => (w.slice(1).match(/[aeiou]/) || [''])[0];
+  return a.length >= 3 && b.length >= 3 && Math.abs(a.length - b.length) <= 2 && soundKey(a) === soundKey(b) && v(a) === v(b);
 }
+// Contractions said as two words ("did not" for "didn't").
+const LONG_FORM = { dont: 'donot', cant: 'cannot', isnt: 'isnot', didnt: 'didnot', doesnt: 'doesnot', wasnt: 'wasnot', wont: 'willnot',
+  couldnt: 'couldnot', wouldnt: 'wouldnot', shouldnt: 'shouldnot', arent: 'arenot', werent: 'werenot', havent: 'havenot', hasnt: 'hasnot',
+  im: 'iam', its: 'itis', youre: 'youare', theyre: 'theyare', were: 'weare', ill: 'iwill', well: 'wewill', lets: 'letus', thats: 'thatis', whats: 'whatis' };
+// One story word heard as two ("sun flower"), or a contraction said in full.
+function sameJoined(tok, a, b) { const j = a + b; return tok === j || LONG_FORM[tok] === j || (j.length >= 6 && levenshtein(tok, j) <= 1); }
 
 // Follows the reader through the passage. Heard words are matched a few words ahead; jumped-over
 // words are skipped, and a word reached only after wrong attempts is a stumble. When the recognizer
@@ -180,8 +224,12 @@ function align(toks, heard) {
   for (let i = 0; i < heard.length; i++) {
     const h = heard[i];
     if (!h) continue;
-    let hit = -1, jump = false;
+    let hit = -1, jump = false, extra = 0, pair = -1;
     for (let j = p; j < Math.min(p + 4, toks.length); j++) if (sameWord(toks[j].n, h)) { hit = j; break; }
+    // "sun flower" for "sunflower", "did not" for "didn't".
+    if (hit < 0 && heard[i + 1]) for (let j = p; j < Math.min(p + 3, toks.length); j++) if (sameJoined(toks[j].n, h, heard[i + 1])) { hit = j; extra = 1; break; }
+    // "sunflower" for "sun flower" in the story: one heard word covers two story words.
+    if (hit < 0) for (let j = p; j < Math.min(p + 3, toks.length - 1); j++) if (sameJoined(h, toks[j].n, toks[j + 1].n)) { hit = j + 1; pair = j; break; }
     if (hit < 0) {
       const next = heard[i + 1];
       for (let j = p + 4; j < Math.min(p + RESYNC_WINDOW, toks.length); j++) {
@@ -191,10 +239,13 @@ function align(toks, heard) {
       }
     }
     if (hit < 0) {
-      if (p > 0 && sameWord(toks[p - 1].n, h)) continue; // a repeat is fine
+      // Re-reading the last few words is fine, not a stumble.
+      if ([1, 2, 3].some(back => p - back >= 0 && sameWord(toks[p - back].n, h))) continue;
       wrong++; continue;
     }
+    i += extra;
     for (let k = p; k < hit; k++) status[k] = jump ? 'unheard' : 'skipped';
+    if (pair >= 0) status[pair] = 'read';
     status[hit] = wrong > 0 && !jump ? 'stumble' : 'read';
     p = hit + 1; wrong = 0;
   }
@@ -309,8 +360,11 @@ function mountReader(el, passage, { onDone, nextLabel = 'NEXT ▶' }) {
   }
 
   function startRecog() {
-    recog = new SR();
+    recog = new (currentSR())();
+    recog.story = passage.text;
     recog.lang = 'en-US'; recog.continuous = true; recog.interimResults = true;
+    // The story's words: the Android listener biases the phone's recognizer toward them (Android 13+).
+    recog.expect = [...new Set(toks.map(t => t.raw.replace(/^[^A-Za-z0-9']+|[^A-Za-z0-9']+$/g, '')))].filter(Boolean).slice(0, 300);
     recog._finals = [];
     recog.onresult = onResult;
     recog.onerror = e => {
@@ -355,16 +409,19 @@ function mountReader(el, passage, { onDone, nextLabel = 'NEXT ▶' }) {
     if (!running) return;
     running = false; finished = true; fixing = false; clearInterval(timer);
     keepAwake(false); btn('done').classList.remove('pulse');
-    if (recog) { recog.onend = null; try { recog.stop(); } catch (e) {} }
     const end = Date.now();
+    let heardAudio = null;
+    if (recog && mode === 'mic') {
+      recog.onend = null;
+      $('[data-r-hint]', el).textContent = 'Checking the last words…';
+      try { const r = await recog.stop(); if (r && r.wav) heardAudio = new Blob([Uint8Array.from(atob(r.wav), ch => ch.charCodeAt(0))], { type: 'audio/wav' }); } catch (e) {}
+    }
     // Words after the last one heard: the app may have stopped hearing him, so they're "unheard".
     if (mode === 'mic') state.status = state.status.map(s => s === 'unread' ? 'unheard' : s);
     else state.status = toks.map((_, i) => helperMissed.has(i) ? 'skipped' : 'read');
     const minutes = mode === 'mic' && firstHeard ? Math.max((lastHeard || end) - firstHeard, 1000) / 60000 : (end - t0) / 60000;
-    if (recorder) {
-      const blob = await recorder.stop();
-      if (blob) { lastRecId = 'rec-' + uid(); try { await Blobs.put(lastRecId, blob); } catch (e) { lastRecId = null; } }
-    }
+    const blob = recorder ? await recorder.stop() : heardAudio;
+    if (blob) { lastRecId = 'rec-' + uid(); try { await Blobs.put(lastRecId, blob); } catch (e) { lastRecId = null; } }
     lastRun = { seconds: Math.round((end - t0) / 1000), minutes };
     btn('done').classList.add('hidden'); btn('start').classList.remove('hidden'); btn('listen').classList.remove('hidden'); btn('mode').classList.remove('hidden');
     $('span', btn('start')).textContent = 'READ AGAIN';

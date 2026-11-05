@@ -1,7 +1,7 @@
 {
   "name": "bitschool-reading",
   "productName": "bitschool Reading",
-  "version": "1.5.1",
+  "version": "1.6.0",
   "description": "bitschool Reading: placement test, levels A-1 to H-10, read-aloud checks and local-model stories.",
   "author": "128bit family",
   "license": "UNLICENSED",
@@ -11,9 +11,10 @@
     "copy-web": "node scripts/copy-web.js",
     "start": "npm run copy-web && electron .",
     "exe": "npm run copy-web && npm run win-binaries && electron-builder --win --x64",
-    "apk": "npm run copy-web && npm run prepare-llama && cap sync android && cd android && ./gradlew assembleDebug",
+    "apk": "npm run copy-web && npm run prepare-llama && npm run prepare-whisper && cap sync android && cd android && ./gradlew assembleDebug",
     "prepare-llama": "node scripts/prepare-llama.js",
-    "win-binaries": "npm install --no-save --force --os=win32 --cpu=x64 @node-llama-cpp/win-x64@3.22.2 @node-llama-cpp/win-x64-vulkan@3.22.2"
+    "win-binaries": "npm install --no-save --force --os=win32 --cpu=x64 @node-llama-cpp/win-x64@3.22.2 @node-llama-cpp/win-x64-vulkan@3.22.2",
+    "prepare-whisper": "node scripts/prepare-whisper.js"
   },
   "build": {
     "appId": "com.bitschool.reading",

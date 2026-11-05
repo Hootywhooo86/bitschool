@@ -50,8 +50,16 @@ const Model = {
     return parseJSON(text);
   },
 
-  async writeStory(level, onProgress, chosen) {
-    const s = levelSpec(level);
+  // opts.base + opts.note: rewrite that story as asked. opts.keepText: write the questions for the
+  // grown-up's own text and keep it word for word.
+  async writeStory(level, onProgress, chosen, opts = {}) {
+    const s = storySpec(level);
+    const st = Store.state.settings, name = Store.state.child.name;
+    const wishes = [
+      st.storyStyle ? `- The grown-up asks: ${st.storyStyle}` : '',
+      st.useName && name ? `- The main character is named ${name}.` : '',
+      st.practiceWords && st.practiceWords.length ? `- Use these words in the story: ${st.practiceWords.join(', ')}.` : '',
+    ].filter(Boolean).join('\n');
     const n = Store.state.sessions.length;
     const genre = level >= 30 && n % 3 === 2 ? 'nonfiction (true facts, explained simply)' : 'story';
     const recent = Store.state.sessions.slice(-8).map(x => x.topic).filter(Boolean);
@@ -69,7 +77,7 @@ The passage ("text"):
 - Kid-safe, like a cartoon: action and adventure are fine, but no blood, nobody dies or is badly hurt (bad guys and monsters run away, get caught or give up), no swearing, nothing too scary.${genre.startsWith('nonfiction') ? '\n- Only state facts you are certain are true.' : ''}
 - Separate paragraphs with a blank line.
 
-Then, about that passage:
+${wishes ? 'What the grown-up wants (follow it, but keep the rules above):\n' + wishes + '\n\n' : ''}${opts.base && opts.keepText ? `Use exactly this passage as "text", word for word, and write everything else about it:\n"""${opts.base}"""\n\n` : opts.base ? `Rewrite this story:\n"""${opts.base}"""\nChange it like this: ${opts.note || 'make it better'}\n\n` : ''}Then, about that passage:
 - "title": a short title.
 - "mc": two multiple-choice questions that practice ${s.skills}. Each has "q" (a real question about this passage, ending with ?), "right" (the correct answer, exactly as the passage says) and "wrong" (two answers the passage shows are wrong but that sound believable).
 - "open": one question about the main idea or why something happened ("q"), and "idea": one sentence saying what a good answer must include.
@@ -80,7 +88,9 @@ Then, about that passage:
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         const j = await this.chat(system, user, { schema: STORY_SCHEMA, onProgress });
-        const p = checkStory(j, level);
+        if (opts.keepText) j.text = opts.base; // the grown-up's words, exactly
+        const p = checkStory(j, level, opts.keepText);
+        p.style = styleKey();
         p.topic = topic;
         return p;
       } catch (e) { last = e; }
@@ -130,6 +140,13 @@ const STORY_SCHEMA = {
     mainIdea: STR,
   },
 };
+// The grown-up's story instructions at the time a story is written; stories written ahead under
+// older instructions aren't used.
+function styleKey() {
+  const st = Store.state.settings;
+  return JSON.stringify([st.storyStyle, st.useName && Store.state.child.name, st.storyLength, st.practiceWords]);
+}
+
 // Words that don't belong in a story for a young reader, even an action one.
 const NOT_KID_SAFE = /\b(stopped breathing|never (woke|moved|got) up( again)?|never (woke|moved|breathed) again|lifeless|passed away|blood\w*|kill(s|ed|er|ing)?|murder\w*|dead|death|die[ds]?|dying|corpses?|gore|guts|stab\w*|behead\w*|suicide|bomb(s|ed|ing)?|shit|fuck\w*)\b/i;
 
@@ -137,15 +154,16 @@ const NOT_KID_SAFE = /\b(stopped breathing|never (woke|moved|got) up( again)?|ne
 const PLACEHOLDER = /\b(a question|correct answer|wrong answer|question about|one sentence|copied exactly|child-friendly|harder word|short title|the word\(s\))\b/i;
 
 // Model output is checked before a child sees it: right length, real questions, answers shuffled.
-function checkStory(j, level) {
-  const s = levelSpec(level);
+// trusted: a grown-up wrote the text, so length, level and wording checks don't apply to it.
+function checkStory(j, level, trusted) {
+  const s = storySpec(level);
   const text = String(j.text || '').replace(/\\n/g, '\n').replace(/[\s{}\[\]]+$/, '').replace(/^[\s>-]+(?=["“A-Z])/, '').trim();
   const count = words(text).length;
-  if (count < s.minWords * 0.75 || count > s.maxWords * 1.4) throw new Error(`Story was ${count} words, wanted about ${s.words}`);
-  if (PLACEHOLDER.test(text)) throw new Error('Story text was copied from the instructions');
-  if (NOT_KID_SAFE.test(text + ' ' + (j.title || ''))) throw new Error('Story was not kid-safe');
+  if (!trusted && (count < s.minWords * 0.75 || count > s.maxWords * 1.4)) throw new Error(`Story was ${count} words, wanted about ${s.words}`);
+  if (!trusted && PLACEHOLDER.test(text)) throw new Error('Story text was copied from the instructions');
+  if (!trusted && NOT_KID_SAFE.test(text + ' ' + (j.title || ''))) throw new Error('Story was not kid-safe');
   const grade = readingGrade(text), maxGrade = BAND_MAX_GRADE[Math.floor(level / 10)];
-  if (grade > maxGrade) throw new Error(`Story read at grade ${grade.toFixed(1)}, too hard for ${s.name}`);
+  if (!trusted && grade > maxGrade) throw new Error(`Story read at grade ${grade.toFixed(1)}, too hard for ${s.name}`);
   const inText = w => words(text).some(x => norm(x) === norm(w));
   const real = q => q && String(q).trim().length > 8 && /\?\s*$/.test(q) && !PLACEHOLDER.test(q);
   // Older replies use "questions"; schema replies use "mc" and "open".

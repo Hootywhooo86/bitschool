@@ -233,11 +233,26 @@ function tabSettings(el) {
       <button class="btn alt" data-speed="0.1"><span>FASTER</span></button>
     </div>
 
+    <h2 class="sub-h">Listening</h2>
+    ${listenHTML()}
+
     <h2 class="sub-h">Story ideas</h2>
     <p class="muted">Before each Story sheet he picks what it's about: superheroes, missions, space bugs, robots and more. Add his favorites here, like a hero, game or show. Stories stay kid-safe: action is fine, but no blood, nobody dies, no swearing, and any story that slips is thrown out and rewritten.</p>
     <div class="idea-list">${st.storyIdeas.map((t, k) => `<span class="idea-chip">${esc(t)}<button class="btn warn" data-delidea="${k}"><span>REMOVE</span></button></span>`).join('') || '<p class="muted">No ideas added yet.</p>'}</div>
     <div class="row wrap-row"><input class="input grow" data-idea maxlength="60" placeholder="Like: Spider-Man, Helldivers, Call of Duty" aria-label="Story idea"><button class="btn" data-addidea><span>ADD IDEA</span></button></div>
     <div class="row wrap-row"><button class="btn alt ${st.ownIdeas ? 'on' : ''}" data-ownideas><span>HE CAN TYPE HIS OWN IDEAS: ${st.ownIdeas ? 'ON' : 'OFF'}</span></button></div>
+
+    <h2 class="sub-h">How stories are written</h2>
+    <p class="muted">Tell the story writer how you want his stories. It follows this for every new story, inside his level and the kid-safe rules. You can also change any single story before he reads it (✎ CHANGE THIS STORY), or type your own in the story picker.</p>
+    <textarea class="input" data-style rows="3" maxlength="400" placeholder="Like: Make them funny. Put our dog Max in them. Use lots of 'sh' and 'ch' words. Less fighting, more teamwork.">${esc(st.storyStyle)}</textarea>
+    <div class="row wrap-row"><button class="btn" data-savestyle><span>SAVE INSTRUCTIONS</span></button></div>
+    <div class="row wrap-row">
+      <button class="btn alt ${st.useName ? 'on' : ''}" data-usename><span>${esc((s.child.name || 'HIS NAME').toUpperCase())} IS THE HERO: ${st.useName ? 'ON' : 'OFF'}</span></button>
+    </div>
+    <div class="row wrap-row">
+      ${['shorter', 'normal', 'longer'].map(k => `<button class="btn alt ${st.storyLength === k ? 'on' : ''}" data-length="${k}"><span>${k === 'normal' ? 'LENGTH FOR HIS LEVEL' : k.toUpperCase()}</span></button>`).join('')}
+    </div>
+    <div class="row wrap-row"><input class="input grow" data-practice value="${esc(st.practiceWords.join(', '))}" placeholder="Words to practice in stories, like: ship, chase, shell"><button class="btn" data-savepractice><span>SAVE WORDS</span></button></div>
 
     <h2 class="sub-h">Story writer</h2>
     <p class="muted">Stories, open-answer checking and word meanings come from an AI model that runs on your own device or computer. Nothing is sent to the internet except the one-time model download.</p>
@@ -316,6 +331,12 @@ function tabSettings(el) {
     rerender(); toast('Added: ' + t);
   };
   $('[data-addidea]', el).onclick = addIdea;
+  // New instructions apply to stories written from now on, so stories written ahead are dropped.
+  const restyle = msg => { s.cache = {}; rerender(); toast(msg); };
+  $('[data-savestyle]', el).onclick = () => { st.storyStyle = $('[data-style]', el).value.trim().slice(0, 400); restyle('Saved — new stories will follow it'); };
+  $('[data-usename]', el).onclick = () => { if (!s.child.name && !st.useName) return toast('Save his name under Reader first'); st.useName = !st.useName; restyle(st.useName ? 'He is the hero of new stories' : 'Stories use other characters'); };
+  $$('[data-length]', el).forEach(b => b.onclick = () => { st.storyLength = b.dataset.length; restyle('Story length saved'); });
+  $('[data-savepractice]', el).onclick = () => { st.practiceWords = $('[data-practice]', el).value.split(/[,;\n]/).map(w => w.trim()).filter(Boolean).slice(0, 15); restyle('Practice words saved'); };
   $('[data-idea]', el).addEventListener('keydown', e => e.key === 'Enter' && addIdea());
   $$('[data-delidea]', el).forEach(b => b.onclick = () => { st.storyIdeas.splice(+b.dataset.delidea, 1); rerender(); });
   $('[data-ownideas]', el).onclick = () => { st.ownIdeas = !st.ownIdeas; rerender(); };
@@ -327,6 +348,7 @@ function tabSettings(el) {
     Store.save(); await Model.ping(); tabSettings(el); prefetch();
   });
   wireDeviceModels(el, () => tabSettings(el));
+  wireListen(el, () => tabSettings(el));
   if ($('[data-savemodel]', el)) $('[data-savemodel]', el).onclick = async () => {
     m.api = $('[data-api]', el).value; m.endpoint = $('[data-endpoint]', el).value.trim(); m.name = $('[data-modelname]', el).value.trim(); m.vision = $('[data-vision]', el).value.trim();
     Store.save();
@@ -422,6 +444,59 @@ function wireDeviceModels(el, rerender) {
       await Device.remove(dm);
       if (m.device === dm.id) m.device = '';
       Store.save(); await Model.ping(); rerender();
+    });
+  });
+}
+
+// How the app hears him read: the phone's own recognizer, or Whisper on the phone (downloaded once).
+function listenHTML() {
+  const st = Store.state.settings, can = !!nativePlugin('Whisper');
+  const using = LISTEN_MODELS.find(m => m.id === st.listener && Device.has(m));
+  if (!can) return '<p class="muted">Whisper listening is in the Android app. Here the app uses this device\'s own listener' + (IN_ELECTRON ? ' (none on Windows, so a grown-up helps)' : '') + '.</p>';
+  const gb = b => (b / 1e6).toFixed(0) + ' MB';
+  return `
+    <p class="muted">How the app hears him read aloud. Whisper runs on this phone and is given the story he's reading, so it hears kids far better than the phone's own listener. In tests with a child-like voice, pauses and background noise it heard 92–95% of the story. One-time download; works without internet after.</p>
+    <div class="row wrap-row">
+      <button class="btn alt ${!using ? 'on' : ''}" data-listener="phone"><span>PHONE'S LISTENER</span></button>
+      ${LISTEN_MODELS.filter(m => Device.has(m)).map(m => `<button class="btn alt ${using === m ? 'on' : ''}" data-listener="${m.id}"><span>${esc(m.name.toUpperCase())}</span></button>`).join('')}
+    </div>
+    <div class="model-list">${LISTEN_MODELS.map(m => {
+      const has = Device.has(m), dl = Device.downloading && Device.downloading.id === m.id;
+      return `<div class="model-card ${using === m ? 'on' : ''}" data-lmodel="${m.id}">
+        <div class="model-head"><b>${esc(m.name)}</b>${m.id === 'whisper-base' ? '<span class="pill">RECOMMENDED</span>' : ''}${using === m ? '<span class="pill">IN USE ✓</span>' : ''}</div>
+        <p>${esc(m.note)}</p>
+        <p class="muted">${gb(m.size)} download</p>
+        <div class="bar ${dl ? '' : 'hidden'}"><i style="width:0%"></i></div>
+        <p class="muted dl-text">${has ? 'Downloaded ✓' : ''}</p>
+        <div class="row wrap-row">${has ? `${using !== m ? '<button class="btn" data-luse><span>USE THIS ONE</span></button>' : ''}<button class="btn warn" data-ldel><span>DELETE</span></button>`
+          : `<button class="btn" data-ldl ${Device.downloading ? 'disabled' : ''}><span>DOWNLOAD</span></button>`}</div>
+      </div>`;
+    }).join('')}</div>`;
+}
+
+function wireListen(el, rerender) {
+  const st = Store.state.settings;
+  $$('[data-listener]', el).forEach(b => b.onclick = () => { st.listener = b.dataset.listener; Store.save(); rerender(); toast(st.listener === 'phone' ? "Using the phone's listener" : 'Using Whisper to listen'); });
+  $$('[data-lmodel]', el).forEach(card => {
+    const m = LISTEN_MODELS.find(x => x.id === card.dataset.lmodel);
+    const on = (sel, fn) => { const b = $(sel, card); if (b) b.onclick = fn; };
+    on('[data-ldl]', async () => {
+      const bar = $('.bar', card), text = $('.dl-text', card);
+      bar.classList.remove('hidden');
+      $('[data-ldl]', card).outerHTML = '<button class="btn warn" data-lstop><span>STOP DOWNLOAD</span></button>';
+      $('[data-lstop]', card).onclick = () => Device.cancel();
+      try {
+        await Device.download(m, p => { const pct = Math.round(p.loaded / p.total * 100); $('i', bar).style.width = pct + '%'; text.textContent = `Downloading… ${pct}%`; });
+        st.listener = m.id; Store.save(); toast(m.name + ' downloaded — using it to listen');
+      } catch (e) { toast(e.message + (e.message === 'Download stopped' ? '' : ' — press DOWNLOAD to resume')); }
+      rerender();
+    });
+    on('[data-luse]', () => { st.listener = m.id; Store.save(); rerender(); });
+    on('[data-ldel]', async () => {
+      if (!confirm('Delete ' + m.name + '? You can download it again later.')) return;
+      await Device.remove(m);
+      if (st.listener === m.id) st.listener = 'phone';
+      Store.save(); rerender();
     });
   });
 }

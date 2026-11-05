@@ -29,13 +29,14 @@ function screenHome() {
     <section class="tiles">
       ${!s.placed ? tile('placement', 'flag', 'PLACEMENT TEST', 'Start here — find your level', 'hot') : ''}
       ${tile('lesson', 'book', "TODAY'S SHEET", s.placed ? `Sheet ${nextNo} of ${book.size} · ${Booklet.kind(nextNo) === 'words' ? 'Word Work' : 'Story'}` : 'Unlocks after placement', s.placed ? 'hot' : 'dim')}
+      ${s.placed ? tile('storytime', 'book', 'STORY TIME', 'Read any story, any time') : ''}
       ${s.placed ? tile('practice', 'sheet', 'WORKSHEETS', 'Extra practice, any skill') : ''}
       ${tile('review', 'star', 'WORD REVIEW', due ? due + ' word' + (due > 1 ? 's' : '') + ' to practice' : 'All caught up')}
       ${s.placed ? tile('placement', 'flag', 'RETAKE PLACEMENT', 'Check the level again') : ''}
       ${tile('colors', 'palette', 'COLORS', 'Make it yours')}
       ${tile('parent', 'chart', 'GROWN-UPS', 'Progress & settings')}
     </section>
-    <p class="status-line" id="modelStatus">${modelStatus()}</p>
+    <p class="status-line" id="modelStatus">${modelStatus()}</p>${(prefetch(), '')}
     ${Account.signedIn() ? `<p class="status-line" data-sync>${Account.statusText()}</p>` : '<p class="status-line">○ Progress is saved on this device only. Sign in to the 128bit account in Grown-ups → Settings to keep it safe.</p>'}`;
 }
 
@@ -105,7 +106,7 @@ function modelStatus() {
 let prefetching = null;
 async function getPassage(level, onWait, onProgress, topic) {
   const s = Store.state;
-  const matches = p => !topic || p.topic === topic;
+  const matches = p => (!topic || p.topic === topic) && (!p.style || p.style === styleKey());
   const take = () => { const c = s.cache[level] || [], i = c.findIndex(matches); if (i < 0) return null; const p = c.splice(i, 1)[0]; s.cache[level] = c; Store.save(); return p; };
   // A story being written in the background is often the one we need: wait for it rather than start another.
   if (!(s.cache[level] || []).some(matches) && prefetching) { onWait && onWait(); await prefetching; }
@@ -129,7 +130,7 @@ function prefetch() {
       const st = Store.state, fav = st.storyPicks[0];
       for (const lv of [st.level, Math.min(LEVEL_COUNT - 1, st.level + 1)]) {
         const c = st.cache[lv] || [];
-        if (c.some(p => !fav || p.topic === fav)) continue;
+        if (c.some(p => (!fav || p.topic === fav) && (!p.style || p.style === styleKey()))) continue;
         const p = await Model.writeStory(lv, null, fav);
         (st.cache[lv] = st.cache[lv] || []).push(p);
         Store.save();
@@ -241,6 +242,7 @@ function screenSheet() {
 }
 
 function sheetHeader(kind, n, level) {
+  if (!n) return `<div class="lesson-meta"><span class="pill">STORY TIME</span><span class="pill">LEVEL ${levelName(level)}</span></div>`;
   const b = Booklet.get();
   return `<div class="lesson-meta"><span class="pill">${kind === 'words' ? 'WORD WORK' : 'STORY'} · SHEET ${n} OF ${b.size}</span><span class="pill">LEVEL ${levelName(level)}</span>
     ${b.sheets[n] && !b.sheets[n].passed ? '<span class="muted">Let\'s try this sheet again.</span>' : ''}</div>`;
@@ -266,6 +268,7 @@ function screenWordWork(n) {
 // The end of any sheet: score, what happens next in the booklet, and the way on.
 function sheetDone(stage, kind, n, score, o, detailHTML = '') {
   const s = Store.state;
+  if (!n) return storyTimeDone(stage, score, o, detailHTML);
   const stars = score >= 95 ? 3 : score >= o.mark ? 2 : score >= 60 ? 1 : 0;
   const b = Booklet.get();
   stage.innerHTML = `
@@ -289,6 +292,62 @@ function sheetDone(stage, kind, n, score, o, detailHTML = '') {
   $('[data-again]', stage).onclick = () => screenSheet();
   updateTop();
   prefetch();
+}
+
+function storyTimeDone(stage, score, o, detailHTML) {
+  const stars = score >= 95 ? 3 : score >= o.mark ? 2 : score >= 60 ? 1 : 0;
+  stage.innerHTML = `
+    <div class="center">
+      <h1>${o.passed ? 'Great reading!' : 'Nice reading — keep going!'}</h1>
+      ${goalCheerHTML(o)}
+      <div class="stars">${[0, 1, 2].map(i => `<span class="${i < stars ? '' : 'off'}">${icon('star')}</span>`).join('')}</div>
+      <div class="tiles-row"><div class="stat"><b>${score}%</b><span>SCORE</span></div>${timeStatHTML(o)}</div>
+      ${detailHTML ? `<div class="result-list">${detailHTML}</div>` : ''}
+      <p class="muted">Story Time counts toward today's goal but doesn't change the booklet.</p>
+      <div class="row wrap-row center-row">
+        <button class="btn" data-again><span>ANOTHER STORY ▶</span></button>
+        <button class="btn alt" data-go="home"><span>HOME</span></button>
+      </div>
+    </div>`;
+  Speech.say(o.goalMet ? 'Daily goal done! Great job!' : 'Great reading!');
+  $('[data-again]', stage).onclick = () => screenStoryTime();
+  updateTop();
+  prefetch();
+}
+
+// Grown-up: rewrite the story with a note, edit its words, or get another one.
+function changeStory(n, topic, level, p, restart) {
+  const m = modal(`
+    <h2>Change this story</h2>
+    ${Model.online ? `
+      <p class="muted">Tell the story writer what to change. Like: “make it funnier”, “shorter”, “put his dog Max in it”, “less fighting”.</p>
+      <textarea class="input" data-x="note" rows="2" placeholder="What should change?"></textarea>
+      <div class="row wrap-row center-row"><button class="btn" data-x="rewrite"><span>REWRITE IT</span></button>
+        <button class="btn alt" data-x="another"><span>A DIFFERENT STORY</span></button></div>` : ''}
+    <p class="muted">Or change the words yourself:</p>
+    <textarea class="input" data-x="text" rows="8">${esc(p.text)}</textarea>
+    <div class="row wrap-row center-row"><button class="btn" data-x="save"><span>USE MY WORDS</span></button>
+      <button class="btn alt" data-x="close"><span>KEEP IT</span></button></div>`);
+  $('[data-x=close]', m.el).onclick = m.close;
+  const busy = text => { m.close(); view().innerHTML = loadingHTML(text); };
+  if ($('[data-x=rewrite]', m.el)) $('[data-x=rewrite]', m.el).onclick = async () => {
+    const note = $('[data-x=note]', m.el).value.trim();
+    if (!note) return toast('Write what should change');
+    busy('Rewriting the story…');
+    try { const fresh = await Model.writeStory(level, k => { const el = $('#writeProgress'); if (el) el.textContent = 'About ' + Math.min(99, Math.round(k / (storySpec(level).words * 1.4 + 250) * 100)) + '% written'; }, topic || p.topic, { base: p.text, note }); restart(fresh); }
+    catch (e) { toast("Couldn't rewrite it: " + e.message); restart(p); }
+  };
+  if ($('[data-x=another]', m.el)) $('[data-x=another]', m.el).onclick = async () => {
+    busy('Writing a different story…');
+    try { restart(await Model.writeStory(level, null, topic || null)); } catch (e) { toast("Couldn't write one: " + e.message); restart(p); }
+  };
+  $('[data-x=save]', m.el).onclick = async () => {
+    const text = $('[data-x=text]', m.el).value.trim();
+    if (words(text).length < 5) return toast('The story needs a few sentences');
+    if (text === p.text) return m.close();
+    busy('Getting the story ready…');
+    restart(await ownPassage(level, p.title, text));
+  };
 }
 
 function timeStatHTML(o) {
@@ -355,18 +414,47 @@ function runPractice(skill) {
 /* ---------------- Story sheets ---------------- */
 const STEPS = [['warmup', 'WORDS'], ['read', 'READ'], ['questions', 'QUESTIONS'], ['circle', 'CIRCLE'], ['blank', 'BLANK'], ['order', 'ORDER'], ['done', 'DONE']];
 
+// Story Time: any story, any time, outside the booklet. Counts toward the daily goal.
+function screenStoryTime() {
+  const s = Store.state;
+  if (!s.placed) { toast('Take the placement test first'); return go('placement'); }
+  if (Model.online) storyPicker(0, (topic, raw) => runStory(0, topic, raw));
+  else storyPicker(0, (topic, raw) => runStory(0, topic, raw));
+}
+
+// A grown-up types or pastes a story; the story writer (if ready) adds the questions.
+function ownStoryModal(level, onReady, start = '') {
+  const m = modal(`
+    <h2>A grown-up's story</h2>
+    <p class="muted">Type or paste a story for him to read. ${Model.online ? 'The story writer will add the questions.' : 'Without the story writer it gets one question: what happened?'}</p>
+    <input class="input" data-x="title" maxlength="80" placeholder="Title (optional)">
+    <textarea class="input" data-x="text" rows="8" placeholder="Once upon a time…">${esc(start)}</textarea>
+    <div class="row wrap-row center-row">
+      <button class="btn" data-x="go"><span>USE THIS STORY ▶</span></button>
+      <button class="btn alt" data-x="close"><span>BACK</span></button>
+    </div>`);
+  $('[data-x=close]', m.el).onclick = m.close;
+  $('[data-x=go]', m.el).onclick = async () => {
+    const text = $('[data-x=text]', m.el).value.trim();
+    if (words(text).length < 5) return toast('Write a few sentences first');
+    m.close();
+    view().innerHTML = loadingHTML('Getting the story ready…');
+    onReady(await ownPassage(level, $('[data-x=title]', m.el).value.trim(), text));
+  };
+}
+
 function screenLesson(n) {
   const s = Store.state;
   if (!s.placed) { toast('Take the placement test first'); return go('placement'); }
   if (!n) n = Booklet.next();
   // With a story writer he picks what the story is about; the built-in stories are fixed.
-  if (Model.online) storyPicker(n, topic => runStory(n, topic));
+  if (Model.online) storyPicker(n, (topic, raw) => runStory(n, topic, raw));
   else runStory(n, null);
 }
 
 function storyPicker(n, onPick) {
   const s = Store.state, st = s.settings, level = s.level;
-  const ready = topic => (s.cache[level] || []).some(p => p.topic === topic);
+  const ready = topic => (s.cache[level] || []).some(p => p.topic === topic && (!p.style || p.style === styleKey()));
   const choices = [
     ...st.storyIdeas.map(idea => ({ topic: idea, name: idea.toUpperCase(), icon: 'star' })),
     ...STORY_THEMES,
@@ -379,6 +467,7 @@ function storyPicker(n, onPick) {
       <div class="tiles">
         ${choices.map((c, k) => `<button class="tile ${ready(c.topic) ? 'hot' : ''}" data-pick="${k}">${icon(c.icon)}<b>${esc(c.name)}</b><span>${ready(c.topic) ? 'Ready now!' : 'Takes a minute to write'}</span></button>`).join('')}
         ${st.ownIdeas ? `<button class="tile" data-own>${icon('palette')}<b>MY OWN IDEA</b><span>Type or say it</span></button>` : ''}
+        <button class="tile" data-grownup>${icon('sheet')}<b>A GROWN-UP'S STORY</b><span>Type or paste one</span></button>
         <button class="tile" data-surprise>${icon('book')}<b>SURPRISE ME</b><span>${(s.cache[level] || []).length ? 'Ready now!' : 'Any story'}</span></button>
       </div>
     </section>`;
@@ -388,6 +477,7 @@ function storyPicker(n, onPick) {
   };
   $$('[data-pick]').forEach(b => b.onclick = () => pick(choices[+b.dataset.pick].topic));
   $('[data-surprise]').onclick = () => pick(null);
+  $('[data-grownup]').onclick = () => ownStoryModal(level, raw => onPick(null, raw));
   if ($('[data-own]')) $('[data-own]').onclick = () => {
     const m = modal(`
       <h2>What should your story be about?</h2>
@@ -410,13 +500,13 @@ function storyPicker(n, onPick) {
   };
 }
 
-async function runStory(n, topic) {
+async function runStory(n, topic, given) {
   const s = Store.state;
-  const level = s.level;
+  const level = s.level, hash = location.hash;
+  const progress = k => { const el = $('#writeProgress'); if (el) el.textContent = 'About ' + Math.min(99, Math.round(k / (storySpec(level).words * 1.4 + 250) * 100)) + '% written'; };
   view().innerHTML = loadingHTML('Getting your story ready…');
-  const raw = await getPassage(level, () => { view().innerHTML = loadingHTML('Writing a new ' + levelName(level) + ' story' + (topic ? ' about ' + topic : '') + '…'); },
-    n => { const el = $('#writeProgress'); if (el) el.textContent = 'About ' + Math.min(99, Math.round(n / (levelSpec(level).words * 1.4 + 250) * 100)) + '% written'; }, topic);
-  if (!location.hash.includes('lesson')) return; // left while waiting
+  const raw = given || await getPassage(level, () => { view().innerHTML = loadingHTML('Writing a new ' + levelName(level) + ' story' + (topic ? ' about ' + topic : '') + '…'); }, progress, topic);
+  if (location.hash !== hash) return; // left while waiting
   const p = preparePassage(raw);
   const due = Store.dueWords(5);
   const steps = STEPS.map(x => x[0]).filter(k => (k !== 'warmup' || due.length) && (k !== 'blank' || p.blank) && (k !== 'order' || p.order));
@@ -427,14 +517,19 @@ async function runStory(n, topic) {
     <section class="panel">
       <div class="pips">${steps.map(k => `<span class="pip" data-step="${k}">${STEPS.find(x => x[0] === k)[1]}</span>`).join('')}</div>
       ${sheetHeader('story', n, level)}
-      <p class="muted">${p.source === 'model' ? 'A new story written for this level' + (p.topic ? ' about ' + esc(p.topic) : '') : 'Built-in story'}</p>
+      <div class="row wrap-row story-source"><p class="muted">${p.source === 'model' ? 'A new story written for this level' + (p.topic ? ' about ' + esc(p.topic) : '') : p.source === 'grown-up' ? 'A story from home' : 'Built-in story'}</p>
+        <button class="btn alt" data-change><span>✎ CHANGE THIS STORY</span></button></div>
       <div id="stage"></div>
     </section>`;
   const stage = $('#stage'), stopClock = startClock($('.lesson-meta'));
+  // Before he starts reading, a grown-up can rewrite the story, edit its words, or get another one.
+  $('[data-change]').onclick = () => changeStory(n, topic, level, p, fresh => runStory(n, topic, fresh));
   step();
 
   function step() {
     const k = steps[at];
+    const ch = $('[data-change]');
+    if (ch) ch.classList.toggle('hidden', !(k === 'warmup' || k === 'read'));
     $$('.pip').forEach((x, i) => { x.classList.toggle('on', i === at); x.classList.toggle('past', i < at); });
     window.scrollTo({ top: 0, behavior: 'smooth' });
     const nextStep = () => { at++; step(); };
@@ -453,12 +548,12 @@ async function runStory(n, topic) {
     const read = res.read && !res.read.skipped ? res.read : null;
     const score = Math.round(read ? 0.4 * read.accuracy + 0.6 * taskPct : taskPct);
     const seconds = stopClock(), before = lastTime('story', level);
-    const outcome = Booklet.record(n, 'story', score), passed = outcome.passed, from = level;
+    const outcome = n ? Booklet.record(n, 'story', score) : { passed: score >= s.settings.passMark, up: false, mark: s.settings.passMark }, passed = outcome.passed, from = level;
     outcome.seconds = seconds; outcome.before = before; outcome.goalMet = Store.logSheet(seconds);
     (read ? read.missed : []).forEach(w => Store.missWord(w));
     const session = {
       id: uid(), at: Date.now(), level: from, title: p.title, passageId: p.id, source: p.source, topic: p.topic || '',
-      kind: 'story', sheet: n, sheetSeconds: seconds, text: p.text, wpm: read ? read.wpm : null, accuracy: read ? read.accuracy : null, seconds: read ? read.seconds : null,
+      kind: n ? 'story' : 'storytime', sheet: n || null, sheetSeconds: seconds, text: p.text, wpm: read ? read.wpm : null, accuracy: read ? read.accuracy : null, seconds: read ? read.seconds : null,
       mode: read ? read.mode : 'skipped', recId: read ? read.recId : null, missed: read ? read.missed : [],
       taskPct, score, passed, questions: res.questions, circle: res.circle, blank: res.blank, order: res.order,
     };

@@ -18,7 +18,7 @@ const Device = {
   isPC() { return !!window.bitschoolNative; },
   model(id) { return DEVICE_MODELS.find(m => m.id === id); },
   selected() { return this.model(Store.state.settings.model.device) || null; },
-  has(m) { return !!m && this.state.files.some(f => f.file === m.file && f.size >= m.size * 0.98); },
+  has(m) { return !!m && (this.state.files || []).some(f => f.file === m.file && f.size >= m.size * 0.98); },
   ready() { return this.available() && this.has(this.selected()); },
   // Which model to suggest for this device.
   recommended() {

@@ -19,6 +19,14 @@ const BANDS = [
 
 function levelName(i) { return LETTERS[Math.floor(i / 10)] + '-' + (i % 10 + 1); }
 
+// The level's spec with the grown-up's length choice (shorter / as the level / longer).
+const LENGTHS = { shorter: 0.7, normal: 1, longer: 1.3 };
+function storySpec(i) {
+  const s = levelSpec(i), f = LENGTHS[(typeof Store !== 'undefined' && Store.state && Store.state.settings.storyLength) || 'normal'] || 1;
+  if (f === 1) return s;
+  return { ...s, words: Math.round(s.words * f), minWords: Math.round(s.minWords * f), maxWords: Math.round(s.maxWords * f) };
+}
+
 function levelSpec(i) {
   const t = i / (LEVEL_COUNT - 1);
   const band = BANDS[Math.floor(i / 10)];

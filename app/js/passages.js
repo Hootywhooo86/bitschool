@@ -257,6 +257,16 @@ function fallbackCircle(p) {
   return { kind: 'word', prompt: `Circle the word "${target.toLowerCase()}".`, sentence: s, targets: [target] };
 }
 
+// A grown-up's own story. With the story writer it gets real questions; without, one open question.
+async function ownPassage(level, title, text) {
+  if (Model.online) {
+    try { const p = await Model.writeStory(level, null, null, { base: text, keepText: true }); p.title = title || p.title; p.source = 'grown-up'; return p; } catch (e) {}
+  }
+  const first = splitSentences(text)[0] || text;
+  return { id: 'g-' + Date.now().toString(36), level, source: 'grown-up', title: title || 'A Story From Home', text,
+    questions: [{ type: 'open', q: 'What happened in this story?', idea: first }], vocab: {} };
+}
+
 // The closest built-in passage at or below this level, rotating so repeats are rare.
 function builtinFor(level, usedIds = []) {
   const pool = BUILTIN.filter(b => b.level <= level).sort((a, b) => b.level - a.level);

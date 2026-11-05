@@ -11,3 +11,5 @@ android/capacitor-cordova-android-plugins/
 *.keystore
 .llama.cpp/
 android/app/.cxx/
+.whisper/
+.whisper-pkg/
