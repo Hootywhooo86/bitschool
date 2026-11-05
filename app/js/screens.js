@@ -11,6 +11,10 @@ function screenHome() {
   const name = s.child.name;
   const book = s.placed ? Booklet.get() : null, nextNo = s.placed ? Booklet.next() : 0;
   view().innerHTML = `
+    ${s.placed && !s.placementFixed ? `<section class="panel feedback wait replace-note">
+      <p>The placement test used to put the right answer first every time, so his level may be too high. Retake it to find his real level? His progress is kept.</p>
+      <div class="row wrap-row"><button class="btn" data-go="placement"><span>RETAKE PLACEMENT</span></button><button class="btn alt" data-keeplevel><span>KEEP LEVEL ${spec.name}</span></button></div>
+    </section>` : ''}
     <section class="hero panel">
       <div class="hero-art">${icon('apple', 160, 'bitschool apple')}</div>
       <div class="hero-text">
@@ -39,6 +43,12 @@ function screenHome() {
     <p class="status-line" id="modelStatus">${modelStatus()}</p>${(prefetch(), '')}
     ${Account.signedIn() ? `<p class="status-line" data-sync>${Account.statusText()}</p>` : '<p class="status-line">○ Progress is saved on this device only. Sign in to the 128bit account in Grown-ups → Settings to keep it safe.</p>'}`;
 }
+
+// Wires the home screen's one-time placement note.
+document.addEventListener('click', e => {
+  if (!e.target.closest('[data-keeplevel]')) return;
+  Store.state.placementFixed = true; Store.save(); screenHome();
+});
 
 // Today's goal, the streak, and the last two weeks as stars.
 function goalHTML() {
@@ -210,7 +220,7 @@ function screenPlacement() {
       const s = Store.state;
       const level = lo >= 0 ? probes[lo].level : 0;
       const from = s.level;
-      s.level = level; s.placed = true; s.booklet = null;
+      s.level = level; s.placed = true; s.booklet = null; s.placementFixed = true;
       s.history.push({ at: Date.now(), from, to: level, why: 'placement' });
       s.placements.push({ at: Date.now(), level, probes: results.map(r => ({ level: r.level, pass: r.pass })) });
       Store.event('placement.done', { level: levelName(level) });

@@ -207,6 +207,13 @@ function shuffle(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { co
 function preparePassage(p) {
   p = JSON.parse(JSON.stringify(p));
   p.sentences = splitSentences(p.text);
+  // Mix up the answer order every time a story is shown, so the right answer isn't always in the same
+  // place (the built-in stories list it first).
+  p.questions = (p.questions || []).map(q => {
+    if (q.type !== 'mc' || !Array.isArray(q.choices)) return q;
+    const right = q.choices[q.answer], mixed = shuffle(q.choices);
+    return { ...q, choices: mixed, answer: mixed.indexOf(right) };
+  });
   if (Array.isArray(p.vocab)) p.vocab = Object.fromEntries(p.vocab.filter(v => v && v.word).map(v => [norm(v.word), v.meaning || '']));
   p.vocab = Object.fromEntries(Object.entries(p.vocab || {}).map(([k, v]) => [norm(k), v]));
 
