@@ -267,3 +267,78 @@ footer{text-align:center;color:var(--muted);font-size:14px;padding:20px 0 40px}
   .tile{min-height:220px;padding:10px}
   .tile b{font-size:11px}
 }
+
+/* ---------------- Animations (off with body.calm: Grown-ups setting or "reduce motion") ---------------- */
+/* Screens slide in; buttons and tiles squish when pressed. */
+#view.enter{animation:slide-in .28s steps(5)}
+@keyframes slide-in{from{transform:translateX(24px);opacity:0}to{transform:none;opacity:1}}
+.btn:active{transform:translateY(4px) scale(.95)}
+.tile:active{transform:translate(3px,3px) scale(.97)}
+.tile:hover .px-icon{animation:hop .5s steps(2) 2}
+
+/* Writing a story: the apple bounces, the pencil scribbles, the bar fills. */
+.writing-art{position:relative;display:inline-block;margin:0 auto}
+.writing-art .pencil{position:absolute;right:-110px;bottom:12px;animation:scribble .5s steps(3) infinite}
+.writing-art .pencil .px-icon{animation:none}
+@keyframes scribble{0%{transform:translate(0,0) rotate(0)}33%{transform:translate(-14px,6px) rotate(-6deg)}66%{transform:translate(8px,-4px) rotate(4deg)}}
+.write-bar{max-width:520px;margin:18px auto}
+.write-bar i{transition:width .6s steps(6)}
+.write-bar.busy i{width:100%!important;animation:shimmer 1.2s steps(6) infinite}
+@keyframes shimmer{50%{opacity:.45}}
+
+/* A new story opens like a page turning. */
+.page-turn .story{transform-origin:left center;animation:page-turn .6s steps(6)}
+@keyframes page-turn{from{transform:perspective(900px) rotateY(80deg);opacity:.2}to{transform:none;opacity:1}}
+
+/* Each word he reads pops green and leaves a little star. */
+.w{position:relative}
+.w.read{animation:word-pop .35s steps(3)}
+@keyframes word-pop{50%{transform:scale(1.25);background:color-mix(in srgb,var(--accent) 30%,transparent)}}
+.w.read::after{content:'★';position:absolute;left:50%;top:-6px;color:var(--accent2);font-size:20px;pointer-events:none;opacity:0;animation:word-star .7s steps(5)}
+@keyframes word-star{0%{opacity:1;transform:translate(-50%,0)}100%{opacity:0;transform:translate(-50%,-34px)}}
+
+/* Right answers glow; wrong ones wobble gently. */
+.choice.right,.btn.right,.order-item.right,.gap.right{animation:right-pop .4s steps(3)}
+@keyframes right-pop{50%{transform:scale(1.08)}}
+.choice.wrong,.btn.wrong,.order-item.wrong,.gap.wrong,.feedback.bad{animation:wobble .45s steps(6)}
+@keyframes wobble{20%{transform:translateX(-8px)}40%{transform:translateX(7px)}60%{transform:translateX(-5px)}80%{transform:translateX(3px)}}
+.feedback.good{animation:right-pop .4s steps(3)}
+
+/* Flying stars, "+1", and falling confetti (all 128px pixel icons). */
+#fx{position:fixed;inset:0;pointer-events:none;z-index:200;overflow:hidden}
+.fx-bit{position:absolute;width:128px;height:128px;animation-name:fx-fly;animation-timing-function:steps(10);animation-fill-mode:forwards}
+.fx-bit .px-icon{width:128px;height:128px}
+@keyframes fx-fly{from{transform:translate(0,0) rotate(0);opacity:1}to{transform:translate(var(--dx),var(--dy)) rotate(var(--spin));opacity:0}}
+.fx-fall{animation-name:fx-fall;animation-timing-function:steps(24)}
+@keyframes fx-fall{from{transform:translate(0,0) rotate(0)}to{transform:translate(var(--dx),var(--dy)) rotate(var(--spin))}}
+.fx-float{position:absolute;transform:translateX(-50%);font-family:var(--pixel);font-size:32px;color:var(--accent2);text-shadow:0 4px 0 var(--shadow);animation:fx-up 1.2s steps(8) forwards}
+@keyframes fx-up{from{opacity:1;transform:translate(-50%,0)}to{opacity:0;transform:translate(-50%,-110px)}}
+
+/* End of a sheet: the stars pop in one by one, the MASTERED stamp slams down, a level up grows the apple. */
+.stars span{display:inline-block;animation:star-in .5s steps(4) backwards}
+.stars span:nth-child(2){animation-delay:.25s} .stars span:nth-child(3){animation-delay:.5s}
+@keyframes star-in{from{transform:scale(0) rotate(-90deg)}70%{transform:scale(1.25)}to{transform:none}}
+.stamp{display:inline-block;font-family:var(--pixel);font-size:clamp(26px,6vw,44px);color:var(--bad);border:6px solid var(--bad);padding:12px 20px;transform:rotate(-8deg);margin:8px auto 4px;animation:stamp .5s steps(4) backwards .2s}
+@keyframes stamp{from{transform:rotate(-8deg) scale(3);opacity:0}70%{transform:rotate(-8deg) scale(.9);opacity:1}to{transform:rotate(-8deg) scale(1)}}
+.level-up-art .px-icon{width:160px;height:160px;animation:apple-grow 1.4s steps(8) both}
+@keyframes apple-grow{0%{transform:scale(.4)}60%{transform:scale(1.5)}100%{transform:scale(1.15)}}
+.slide-in{animation:level-slide .7s steps(6) backwards .5s}
+@keyframes level-slide{from{transform:translateX(-120%);opacity:0}to{transform:none;opacity:1}}
+.goal-cheer{animation:right-pop .6s steps(3) 3}
+
+/* Home: the streak flame flickers (bigger with a longer streak), today's stars pop in, a worm peeks out. */
+.stat.streak .flame{display:block;transform:scale(var(--heat));transform-origin:bottom center}
+.stat.streak .flame .px-icon{display:block;animation:flicker .6s steps(3) infinite}
+@keyframes flicker{33%{transform:scaleY(1.06) skewX(-3deg)}66%{transform:scaleY(.96) skewX(3deg)}}
+.day.met{animation:star-in .45s steps(4) backwards;animation-delay:calc(var(--i) * 60ms)}
+.hero-art{position:relative;z-index:0}
+.hero-art > .px-icon{position:relative;z-index:1}
+/* The worm lives in a box above the apple and slides up out of it now and then. */
+.hero-art .worm{position:absolute;left:16px;top:-100px;width:128px;height:150px;overflow:hidden;z-index:-1;pointer-events:none}
+.hero-art .worm .px-icon{width:128px;height:128px;transform:translateY(150px);animation:worm 9s steps(1) infinite}
+@keyframes worm{0%,78%{transform:translateY(150px)}80%{transform:translateY(90px)}82%,92%{transform:translateY(22px)}85%{transform:translateY(22px) rotate(-8deg)}88%{transform:translateY(22px) rotate(8deg)}94%{transform:translateY(90px)}96%,100%{transform:translateY(150px)}}
+
+/* Animations off. */
+body.calm *,body.calm *::before,body.calm *::after{animation:none!important;transition:none!important}
+body.calm .hero-art .worm,body.calm #fx{display:none}
+@media (prefers-reduced-motion: reduce){*,*::before,*::after{animation:none!important;transition:none!important}.hero-art .worm{display:none}}

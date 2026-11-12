@@ -8,11 +8,15 @@ namespace llm {
 void init(const std::string & backend_dir);
 // Loads the model; returns an empty string on success, else the reason it failed.
 std::string load(const std::string & path, int n_ctx, int n_threads);
-// Runs one system + user turn with thinking off. A non-empty schema forces JSON of that shape.
+// Runs one system + user turn with thinking off; history (JSON [{role, content}], may be empty) holds
+// earlier turns. A non-empty schema forces JSON of that shape. The start of the prompt that matches the
+// last one is not read again.
 // on_progress is called with the number of tokens written so far; returning false stops early.
-std::string generate(const std::string & system, const std::string & user, const std::string & schema,
+std::string generate(const std::string & system, const std::string & history, const std::string & user, const std::string & schema,
                      int max_tokens, float temperature, const std::function<bool(int)> & on_progress);
 void stop();
+// Paused generation waits (used while Whisper listens).
+void pause(bool on);
 void unload();
 bool loaded();
 }

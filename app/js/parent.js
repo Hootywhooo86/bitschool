@@ -219,7 +219,9 @@ function tabSettings(el) {
       <div class="stat"><b>${st.sheetsPerBooklet}</b><span>SHEETS PER BOOKLET</span></div>
       <button class="btn alt" data-sheets="2"><span>+</span></button>
     </div>
-    <div class="row wrap-row"><button class="btn alt ${st.allowSkipRead ? 'on' : ''}" data-skip><span>SKIP READ-ALOUD ALLOWED: ${st.allowSkipRead ? 'ON' : 'OFF'}</span></button></div>
+    <div class="row wrap-row"><button class="btn alt ${st.allowSkipRead ? 'on' : ''}" data-skip><span>SKIP READ-ALOUD ALLOWED: ${st.allowSkipRead ? 'ON' : 'OFF'}</span></button>
+      <button class="btn alt ${st.motion !== false ? 'on' : ''}" data-motion><span>ANIMATIONS: ${st.motion !== false ? 'ON' : 'OFF'}</span></button></div>
+    <p class="muted">Animations also stay off when this device is set to reduce motion.</p>
 
     <h2 class="sub-h">Reading voice</h2>
     <p class="muted">The voice that reads stories and words to him. The most natural-sounding voice on this device is picked automatically; choose another here. More voices: on Android, Settings → Text-to-speech → install voice data; on Windows, Settings → Time & language → Speech.</p>
@@ -255,12 +257,13 @@ function tabSettings(el) {
     <div class="row wrap-row"><input class="input grow" data-practice value="${esc(st.practiceWords.join(', '))}" placeholder="Words to practice in stories, like: ship, chase, shell"><button class="btn" data-savepractice><span>SAVE WORDS</span></button></div>
 
     <h2 class="sub-h">Story writer</h2>
-    <p class="muted">Stories, open-answer checking and word meanings come from an AI model that runs on your own device or computer. Nothing is sent to the internet except the one-time model download.</p>
+    <p class="muted">Stories, open-answer checking and word meanings come from an AI model. On this device or a home computer, nothing is sent to the internet except the one-time model download. A cloud AI writes much faster (seconds instead of a minute or two on a phone) but needs internet and its own key, and costs a little per story.</p>
     <div class="row wrap-row">
       <button class="btn alt ${m.api === 'device' ? 'on' : ''}" data-where="device"><span>ON THIS DEVICE</span></button>
-      <button class="btn alt ${m.api !== 'device' ? 'on' : ''}" data-where="computer"><span>ON A COMPUTER (OLLAMA)</span></button>
+      <button class="btn alt ${m.api === 'cloud' ? 'on' : ''}" data-where="cloud"><span>CLOUD AI</span></button>
+      <button class="btn alt ${m.api === 'ollama' || m.api === 'openai' ? 'on' : ''}" data-where="computer"><span>ON A COMPUTER (OLLAMA)</span></button>
     </div>
-    ${m.api === 'device' ? deviceModelsHTML() : `
+    ${m.api === 'device' ? deviceModelsHTML() : m.api === 'cloud' ? cloudHTML() : `
     <div class="form-grid">
       <label>Server type<select class="input" data-api><option value="ollama" ${m.api === 'ollama' ? 'selected' : ''}>Ollama</option><option value="openai" ${m.api === 'openai' ? 'selected' : ''}>OpenAI-compatible (LM Studio, llama.cpp)</option></select></label>
       <label>Address<input class="input" data-endpoint value="${esc(m.endpoint)}"></label>
@@ -280,7 +283,7 @@ function tabSettings(el) {
     <p class="status-line" data-mstatus>${modelStatus()}</p>
 
     <h2 class="sub-h">Data</h2>
-    <p class="muted">Everything is saved on this device only. ${s.outbox.length} family-feed events are queued for the 128bit family timeline.</p>
+    <p class="muted">Progress is saved on this device${Account.signedIn() ? ' and in the 128bit account' : ''}. ${s.outbox.length} family-feed events are queued for the 128bit family timeline.</p>
     <div class="row wrap-row">
       <button class="btn alt" data-export><span>EXPORT DATA</span></button>
       <button class="btn warn" data-resetall><span>RESET EVERYTHING</span></button>
@@ -341,12 +344,16 @@ function tabSettings(el) {
   $$('[data-delidea]', el).forEach(b => b.onclick = () => { st.storyIdeas.splice(+b.dataset.delidea, 1); rerender(); });
   $('[data-ownideas]', el).onclick = () => { st.ownIdeas = !st.ownIdeas; rerender(); };
   $$('[data-where]', el).forEach(b => b.onclick = async () => {
-    if (b.dataset.where === 'device') {
+    const where = b.dataset.where;
+    if (where === 'device') {
       if (!Device.available()) { toast('Downloading a model works in the Android and Windows apps'); return; }
       m.api = 'device';
-    } else if (m.api === 'device') m.api = 'ollama';
+    } else if (where === 'cloud') m.api = 'cloud';
+    else if (m.api === 'device' || m.api === 'cloud') m.api = 'ollama';
     Store.save(); await Model.ping(); tabSettings(el); prefetch();
   });
+  $('[data-motion]', el).onclick = () => { st.motion = st.motion === false; applyMotion(); rerender(); };
+  wireCloud(el, () => tabSettings(el));
   wireDeviceModels(el, () => tabSettings(el));
   wireListen(el, () => tabSettings(el));
   if ($('[data-savemodel]', el)) $('[data-savemodel]', el).onclick = async () => {
@@ -377,7 +384,10 @@ function tabSettings(el) {
   };
   $('[data-export]', el).onclick = () => {
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([JSON.stringify(s, null, 2)], { type: 'application/json' }));
+    // The cloud AI key stays on this device: never in an exported file.
+    const out = JSON.parse(JSON.stringify(s));
+    if (out.settings.model.cloud) out.settings.model.cloud.key = '';
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' }));
     a.download = 'bitschool-reading-' + new Date().toISOString().slice(0, 10) + '.json';
     a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   };
@@ -499,4 +509,55 @@ function wireListen(el, rerender) {
       Store.save(); rerender();
     });
   });
+}
+
+// The cloud story writer: Claude, or any OpenAI-compatible service, with the grown-up's own key.
+function cloudHTML() {
+  const c = Cloud.cfg(), claude = c.provider === 'claude';
+  return `
+    <div class="row wrap-row">
+      <button class="btn alt ${claude ? 'on' : ''}" data-provider="claude"><span>CLAUDE</span></button>
+      <button class="btn alt ${!claude ? 'on' : ''}" data-provider="openai"><span>OTHER (OPENAI-COMPATIBLE)</span></button>
+    </div>
+    ${claude ? `
+      <div class="model-list">${CLOUD_MODELS.map(cm => `<div class="model-card ${c.name === cm.id ? 'on' : ''}">
+        <div class="model-head"><b>${esc(cm.name)}</b>${c.name === cm.id ? '<span class="pill">IN USE ✓</span>' : ''}</div>
+        <p>${esc(cm.note)}</p>
+        ${c.name === cm.id ? '' : `<div class="row wrap-row"><button class="btn" data-cloudmodel="${cm.id}"><span>USE THIS ONE</span></button></div>`}
+      </div>`).join('')}</div>
+      <p class="muted">Prices are rough guesses for one story with its questions.</p>` : `
+      <div class="form-grid">
+        <label>Address (the part before /v1)<input class="input" data-cloudendpoint placeholder="https://api.example.com" value="${esc(c.endpoint)}"></label>
+        <label>Model name<input class="input" data-cloudname value="${esc(c.provider === 'openai' ? c.name : '')}"></label>
+      </div>`}
+    <div class="form-grid">
+      <label>${claude ? 'Claude API key (from console.anthropic.com)' : 'API key'}<input class="input" type="password" autocomplete="off" data-cloudkey placeholder="${c.key ? 'Saved — type a new one to change it' : 'Paste the key here'}"></label>
+    </div>
+    <div class="row wrap-row"><button class="btn" data-cloudsave><span>SAVE & TEST</span></button>${c.key ? '<button class="btn warn" data-cloudforget><span>REMOVE KEY</span></button>' : ''}</div>
+    <p class="muted">The key is kept only on this ${Device.isPC() ? 'computer' : 'device'}. It isn't saved to the 128bit account or in exported data. Each story request (his level, the topic he picked, your story instructions, and his name if you turned that on) goes to the cloud AI. ${Device.ready() ? 'Without internet, the story writer downloaded on this device takes over.' : 'Without internet, the built-in stories are used.'}</p>`;
+}
+
+function wireCloud(el, rerender) {
+  const c = Cloud.cfg();
+  $$('[data-provider]', el).forEach(b => b.onclick = () => {
+    c.provider = b.dataset.provider;
+    c.name = c.provider === 'claude' ? 'claude-opus-5-5' : '';
+    Store.save(); rerender();
+  });
+  $$('[data-cloudmodel]', el).forEach(b => b.onclick = () => { c.name = b.dataset.cloudmodel; Store.save(); rerender(); toast('Using ' + CLOUD_MODELS.find(x => x.id === c.name).name); });
+  const save = $('[data-cloudsave]', el);
+  if (save) save.onclick = async () => {
+    const key = $('[data-cloudkey]', el).value.trim();
+    if (key) c.key = key;
+    if (c.provider === 'openai') { c.endpoint = $('[data-cloudendpoint]', el).value.trim(); c.name = $('[data-cloudname]', el).value.trim(); }
+    if (!c.key) return toast('Paste the API key first');
+    if (c.provider === 'openai' && (!c.endpoint || !c.name)) return toast('Fill in the address and model name');
+    Store.save();
+    const status = $('[data-mstatus]', el);
+    status.textContent = 'Testing…'; save.disabled = true;
+    try { await Cloud.test(); await Model.ping(); rerender(); $('[data-mstatus]', el).textContent = '✓ The cloud AI answered. New stories will be written in seconds.'; prefetch(); }
+    catch (e) { status.textContent = '✗ ' + e.message; save.disabled = false; }
+  };
+  const forget = $('[data-cloudforget]', el);
+  if (forget) forget.onclick = async () => { c.key = ''; Store.save(); await Model.ping(); rerender(); toast('Key removed from this device'); };
 }

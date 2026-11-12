@@ -16,7 +16,7 @@ function screenHome() {
       <div class="row wrap-row"><button class="btn" data-go="placement"><span>RETAKE PLACEMENT</span></button><button class="btn alt" data-keeplevel><span>KEEP LEVEL ${spec.name}</span></button></div>
     </section>` : ''}
     <section class="hero panel">
-      <div class="hero-art">${icon('apple', 160, 'bitschool apple')}</div>
+      <div class="hero-art">${icon('apple', 160, 'bitschool apple')}<span class="worm">${icon('worm')}</span></div>
       <div class="hero-text">
         <div class="eyebrow">BITSCHOOL READING</div>
         <h1>${name ? 'Hi, ' + esc(name) + '!' : 'Hi, reader!'}</h1>
@@ -57,12 +57,12 @@ function goalHTML() {
   for (let i = 13; i >= 0; i--) {
     const t = Date.now() - i * DAY, k = Store.dayKey(t), d = Store.state.days[k];
     const label = new Date(t).toLocaleDateString(undefined, { weekday: 'narrow' });
-    days.push(`<span class="day ${Store.goalMet(k) ? 'met' : d ? 'some' : ''} ${i === 0 ? 'today' : ''}" title="${k}: ${d ? d.sheets : 0} sheets">${Store.goalMet(k) ? '★' : label}</span>`);
+    days.push(`<span class="day ${Store.goalMet(k) ? 'met' : d ? 'some' : ''} ${i === 0 ? 'today' : ''}" style="--i:${13 - i}" title="${k}: ${d ? d.sheets : 0} sheets">${Store.goalMet(k) ? '★' : label}</span>`);
   }
   return `<section class="panel goal">
     <div class="goal-top">
       <div class="stat"><b>${Math.min(done, goal)} / ${goal}</b><span>${done >= goal ? 'GOAL DONE TODAY!' : 'SHEETS TODAY'}</span></div>
-      <div class="stat"><b>${streak}</b><span>DAY STREAK</span></div>
+      <div class="stat streak"><span class="flame" style="--heat:${Math.min(1, 0.55 + streak * 0.05)}">${icon('flame')}</span><b>${streak}</b><span>DAY STREAK</span></div>
       <div class="goal-bar"><div class="bar"><i style="width:${Math.min(100, done / goal * 100)}%"></i></div>
         <p class="muted">${done >= goal ? 'Great job! Extra sheets still count.' : `${goal - done} more sheet${goal - done > 1 ? 's' : ''} to reach today's goal.`}</p></div>
     </div>
@@ -102,6 +102,12 @@ function bookletHTML(book) {
 
 function modelStatus() {
   const m = Store.state.settings.model;
+  if (m.api === 'cloud') {
+    const c = Cloud.cfg(), name = c.provider === 'claude' ? (CLOUD_MODELS.find(x => x.id === c.name) || { name: c.name }).name : c.name;
+    if (!c.key) return '○ Cloud AI chosen, but no key yet — add it in Grown-ups → Settings. Using the built-in stories.';
+    if (navigator.onLine === false) return Model.online ? '✓ No internet — the story writer on this device writes the stories for now.' : '○ No internet — using the built-in stories until it is back.';
+    return `✓ Cloud story writer ready — ${esc(name)} writes new stories in seconds.`;
+  }
   if (m.api === 'device') {
     const dm = Device.selected();
     if (Model.online) return `✓ Story writer ready — ${esc(dm.name)} on this device writes new stories for each level.`;
@@ -113,46 +119,95 @@ function modelStatus() {
 }
 
 /* ---------------- Getting a passage ---------------- */
-let prefetching = null;
+// A story that matches what he picked, written under the grown-up's current story settings.
+const storyMatches = (p, topic) => (!topic || p.topic === topic) && (!p.style || p.style === styleKey());
+
+// When the story has to be written now, he starts reading as soon as the story itself is done; the
+// questions are written while he reads (passage.pending).
 async function getPassage(level, onWait, onProgress, topic) {
   const s = Store.state;
-  const matches = p => (!topic || p.topic === topic) && (!p.style || p.style === styleKey());
-  const take = () => { const c = s.cache[level] || [], i = c.findIndex(matches); if (i < 0) return null; const p = c.splice(i, 1)[0]; s.cache[level] = c; Store.save(); return p; };
-  // A story being written in the background is often the one we need: wait for it rather than start another.
-  if (!(s.cache[level] || []).some(matches) && prefetching) { onWait && onWait(); await prefetching; }
+  const take = () => { const c = s.cache[level] || [], i = c.findIndex(p => storyMatches(p, topic)); if (i < 0) return null; const p = c.splice(i, 1)[0]; s.cache[level] = c; Store.save(); prefetchSoon(); return p; };
   const cached = take();
   if (cached) return cached;
+  if (shelf.job) {
+    // The story being written ahead is the one he wants: wait for it rather than start again.
+    if (shelf.job.level === level && (!topic || shelf.job.topic === topic)) { onWait && onWait(); try { await shelf.job.done; } catch (e) {} const p = take(); if (p) return p; }
+    // A different one: on this device stop it, so his story gets the processor.
+    else if (Model.cfg().api === 'device' || Model.busy()) { shelf.halt(); await shelf.running; }
+  }
   if (Model.online) {
     onWait && onWait();
-    try { return await Model.writeStory(level, onProgress, topic); }
-    catch (e) { toast('The story writer had trouble — using a built-in story'); }
+    try {
+      return await new Promise((resolve, reject) => {
+        // His questions come before any story written ahead (the device writes one thing at a time).
+        const whole = shelf.foreground = Model.writeStory(level, onProgress, topic, { onText: resolve });
+        whole.then(resolve, reject).finally(() => { if (shelf.foreground === whole) shelf.foreground = null; prefetchSoon(); });
+      });
+    } catch (e) { toast('The story writer had trouble — using a built-in story'); }
   }
   const b = builtinFor(level, s.usedBuiltins);
   s.usedBuiltins = [...s.usedBuiltins.filter(x => x !== b.id), b.id].slice(-12);
   Store.save();
   return b;
 }
-// Write the next stories in the background so he does not wait: his last pick for this level, then the next level.
-function prefetch() {
-  if (prefetching || !Model.online || !Store.state.placed) return prefetching;
-  prefetching = (async () => {
-    try {
-      const st = Store.state, fav = st.storyPicks[0];
-      for (const lv of [st.level, Math.min(LEVEL_COUNT - 1, st.level + 1)]) {
-        const c = st.cache[lv] || [];
-        if (c.some(p => (!fav || p.topic === fav) && (!p.style || p.style === styleKey()))) continue;
-        const p = await Model.writeStory(lv, null, fav);
-        (st.cache[lv] = st.cache[lv] || []).push(p);
-        Store.save();
-      }
-    } catch (e) {}
-    prefetching = null;
-  })();
-  return prefetching;
+
+// The shelf: stories written ahead so he doesn't wait. One for each of his favorite kinds of story at
+// his level, and one for the next level; more while the device is charging, fewer on a low battery.
+const shelf = { job: null, running: null, cancel: null, foreground: null, halt() { if (this.cancel) this.cancel.stop = true; Model.stopWriting(); } };
+let battery = null;
+if (navigator.getBattery) navigator.getBattery().then(b => { battery = b; b.addEventListener('chargingchange', () => { if (b.charging) prefetchSoon(); }); }).catch(() => {});
+
+function shelfWants() {
+  const st = Store.state, picks = st.storyPicks.filter(Boolean);
+  const local = Model.cfg().api === 'device' || (Model.cfg().api === 'cloud' && !Cloud.cfg().key);
+  const charging = !battery || battery.charging;
+  const many = !local ? 3 : charging ? 5 : battery.level < 0.25 ? 1 : 3;
+  const here = picks.length ? picks.slice(0, many) : [null];
+  if (picks.length && here.length < many) here.push(null); // and one for SURPRISE ME
+  const next = Math.min(LEVEL_COUNT - 1, st.level + 1);
+  return [...here.map(t => [st.level, t]), ...(next !== st.level && (!local || many > 1) ? [[next, picks[0] || null]] : [])];
 }
 
+function prefetch() {
+  if (shelf.running || shelf.foreground || !Model.online || !Store.state.placed) return shelf.running;
+  const cancel = shelf.cancel = { stop: false };
+  shelf.running = (async () => {
+    try {
+      for (const [lv, topic] of shelfWants()) {
+        if (cancel.stop) break;
+        const st = Store.state, c = st.cache[lv] || [];
+        // A favorite needs its own story; SURPRISE ME needs one more story than the favorites use.
+        const ready = topic ? c.some(p => storyMatches(p, topic)) : c.filter(p => storyMatches(p)).length > shelfWants().filter(([l, t]) => l === lv && t).length;
+        if (ready) continue;
+        if (c.length >= 6) continue;
+        const job = shelf.job = { level: lv, topic, done: null };
+        job.done = Model.writeStory(lv, null, topic, { cancel }).then(p => {
+          if (p.style === styleKey()) { (st.cache[lv] = st.cache[lv] || []).push(p); Store.save(); }
+          return p;
+        });
+        try { await job.done; } catch (e) { if (cancel.stop || e.fatal || e.network) break; }
+      }
+    } catch (e) {}
+    shelf.job = null; shelf.running = null; shelf.cancel = null;
+  })();
+  return shelf.running;
+}
+// Fill the shelf again a moment after a story is taken off it.
+let prefetchTimer;
+function prefetchSoon() { clearTimeout(prefetchTimer); prefetchTimer = setTimeout(prefetch, 1500); }
+
 function loadingHTML(text) {
-  return `<div class="loading panel">${icon('apple', 160)}<h2>${esc(text)}</h2><p class="muted">The story writer is making something just for this level.</p><p class="muted" id="writeProgress"></p></div>`;
+  return `<div class="loading panel"><div class="writing-art">${icon('apple', 160)}<span class="pencil">${icon('pencil')}</span></div><h2>${esc(text)}</h2><p class="muted">The story writer is making something just for this level.</p>
+    <div class="bar write-bar"><i style="width:4%"></i></div><p class="muted" id="writeProgress"></p></div>`;
+}
+// The writing bar and words while a story is written: k = tokens so far.
+function writeProgress(level) {
+  return k => {
+    const pct = Math.min(99, Math.round(k / (storySpec(level).maxWords * 1.4 + 40) * 100));
+    const el = $('#writeProgress'), bar = $('.write-bar i');
+    if (el) el.textContent = 'About ' + pct + '% written';
+    if (bar) bar.style.width = Math.max(4, pct) + '%';
+  };
 }
 
 /* ---------------- Placement ---------------- */
@@ -262,6 +317,7 @@ function screenWordWork(n) {
   const s = Store.state, level = s.level;
   view().innerHTML = `<section class="panel">${sheetHeader('words', n, level)}<div id="stage"></div></section>`;
   const stage = $('#stage'), stopClock = startClock($('.lesson-meta'));
+  prefetch(); // write his next stories while he does Word Work
   mountWordWork(stage, level, n, { onDone: results => {
     const seconds = stopClock(), before = lastTime('words', level);
     const score = Math.round(results.reduce((t, r) => t + r.score, 0) / results.length * 100);
@@ -283,9 +339,10 @@ function sheetDone(stage, kind, n, score, o, detailHTML = '') {
   const b = Booklet.get();
   stage.innerHTML = `
     <div class="center">
-      ${o.up ? icon('trophy', 160) : ''}
+      ${o.up ? `<div class="level-up-art">${icon('apple', 160)}</div>` : ''}
+      ${o.passed && !o.up ? '<div class="stamp">MASTERED</div>' : ''}
       <h1>${o.up ? 'BOOKLET DONE — LEVEL UP!' : o.passed ? 'Sheet passed!' : 'Nice work — this sheet comes back next time.'}</h1>
-      ${o.up ? `<div class="level-big">${levelName(o.from)} → ${levelName(o.to)}</div>` : ''}
+      ${o.up ? `<div class="level-big slide-in">${levelName(o.from)} → ${levelName(o.to)}</div>` : ''}
       <div class="stars">${[0, 1, 2].map(i => `<span class="${i < stars ? '' : 'off'}">${icon('star')}</span>`).join('')}</div>
       ${goalCheerHTML(o)}
       <div class="tiles-row"><div class="stat"><b>${score}%</b><span>SCORE (PASS ${o.mark}%)</span></div>${timeStatHTML(o)}</div>
@@ -299,6 +356,7 @@ function sheetDone(stage, kind, n, score, o, detailHTML = '') {
       </div>
     </div>`;
   if (o.up || o.passed || o.goalMet) Speech.say(o.up ? 'You finished the booklet! Level up!' : o.goalMet ? 'Daily goal done! Great job!' : 'Sheet passed! Great job!');
+  if (o.up) FX.confetti(12); else if (o.goalMet) FX.confetti(8);
   $('[data-again]', stage).onclick = () => screenSheet();
   updateTop();
   prefetch();
@@ -320,6 +378,7 @@ function storyTimeDone(stage, score, o, detailHTML) {
       </div>
     </div>`;
   Speech.say(o.goalMet ? 'Daily goal done! Great job!' : 'Great reading!');
+  if (o.goalMet) FX.confetti(8);
   $('[data-again]', stage).onclick = () => screenStoryTime();
   updateTop();
   prefetch();
@@ -344,12 +403,12 @@ function changeStory(n, topic, level, p, restart) {
     const note = $('[data-x=note]', m.el).value.trim();
     if (!note) return toast('Write what should change');
     busy('Rewriting the story…');
-    try { const fresh = await Model.writeStory(level, k => { const el = $('#writeProgress'); if (el) el.textContent = 'About ' + Math.min(99, Math.round(k / (storySpec(level).words * 1.4 + 250) * 100)) + '% written'; }, topic || p.topic, { base: p.text, note }); restart(fresh); }
+    try { const fresh = await Model.writeStory(level, writeProgress(level), topic || p.topic, { base: p.text, note }); restart(fresh); }
     catch (e) { toast("Couldn't rewrite it: " + e.message); restart(p); }
   };
   if ($('[data-x=another]', m.el)) $('[data-x=another]', m.el).onclick = async () => {
     busy('Writing a different story…');
-    try { restart(await Model.writeStory(level, null, topic || null)); } catch (e) { toast("Couldn't write one: " + e.message); restart(p); }
+    try { restart(await Model.writeStory(level, writeProgress(level), topic || null)); } catch (e) { toast("Couldn't write one: " + e.message); restart(p); }
   };
   $('[data-x=save]', m.el).onclick = async () => {
     const text = $('[data-x=text]', m.el).value.trim();
@@ -513,11 +572,19 @@ function storyPicker(n, onPick) {
 async function runStory(n, topic, given) {
   const s = Store.state;
   const level = s.level, hash = location.hash;
-  const progress = k => { const el = $('#writeProgress'); if (el) el.textContent = 'About ' + Math.min(99, Math.round(k / (storySpec(level).words * 1.4 + 250) * 100)) + '% written'; };
+  const progress = writeProgress(level);
   view().innerHTML = loadingHTML('Getting your story ready…');
   const raw = given || await getPassage(level, () => { view().innerHTML = loadingHTML('Writing a new ' + levelName(level) + ' story' + (topic ? ' about ' + topic : '') + '…'); }, progress, topic);
   if (location.hash !== hash) return; // left while waiting
   const p = preparePassage(raw);
+  // The questions may still be being written: they're added when ready (or awaited at the questions step).
+  let tasks = null;
+  if (raw.pending) tasks = raw.pending.then(full => {
+    const q = preparePassage({ ...full, text: p.text, level: p.level });
+    p.questions = q.questions; p.vocab = { ...q.vocab, ...p.vocab }; p.mainIdea = q.mainIdea;
+    p.circle = q.circle; // the written circle task, or one built from the main idea
+    tasks = null;
+  }).catch(() => { p.questions = [{ type: 'open', q: 'What happened in this story?', idea: p.sentences[0] || p.text }]; tasks = null; });
   const due = Store.dueWords(5);
   const steps = STEPS.map(x => x[0]).filter(k => (k !== 'warmup' || due.length) && (k !== 'blank' || p.blank) && (k !== 'order' || p.order));
   const res = { read: null, questions: [], circle: null, blank: null, order: null };
@@ -534,6 +601,7 @@ async function runStory(n, topic, given) {
   const stage = $('#stage'), stopClock = startClock($('.lesson-meta'));
   // Before he starts reading, a grown-up can rewrite the story, edit its words, or get another one.
   $('[data-change]').onclick = () => changeStory(n, topic, level, p, fresh => runStory(n, topic, fresh));
+  stage.classList.add('page-turn');
   step();
 
   function step() {
@@ -545,7 +613,16 @@ async function runStory(n, topic, given) {
     const nextStep = () => { at++; step(); };
     if (k === 'warmup') mountReviewCards(stage, due, { title: 'Warm-up words', onDone: nextStep });
     if (k === 'read') mountReader(stage, p, { onDone: r => { res.read = r; nextStep(); } });
-    if (k === 'questions') mountQuestions(stage, p, { onDone: r => { res.questions = r; nextStep(); } });
+    if (k === 'questions') {
+      if (tasks) {
+        stage.innerHTML = loadingHTML('Getting your questions ready…');
+        $('.write-bar', stage).classList.add('busy');
+        $('#writeProgress', stage).textContent = 'Almost there!';
+        tasks.then(() => { if (steps[at] === 'questions' && stage.isConnected) step(); });
+        return;
+      }
+      mountQuestions(stage, p, { onDone: r => { res.questions = r; nextStep(); } });
+    }
     if (k === 'circle') mountCircle(stage, p, { onDone: r => { res.circle = r.correct; nextStep(); } });
     if (k === 'blank') mountBlank(stage, p, { onDone: r => { res.blank = r.correct; nextStep(); } });
     if (k === 'order') mountOrder(stage, p, { onDone: r => { res.order = r.correct; nextStep(); } });

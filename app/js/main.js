@@ -13,6 +13,8 @@ function route() {
   const name = location.hash.replace(/^#\/?/, '') || 'home';
   try { (ROUTES[name] || screenHome)(); }
   catch (e) { showProblem(e); }
+  // Each new screen slides in.
+  const v = view(); v.classList.remove('enter'); void v.offsetWidth; v.classList.add('enter');
   updateTop();
   window.scrollTo(0, 0);
 }
@@ -35,12 +37,13 @@ document.addEventListener('click', e => {
 
 Store.load();
 Account.load();
-applyTheme();
+applyTheme(); applyMotion();
 window.addEventListener('hashchange', route);
 route();
 // Progress saved from another device comes in first, then the home screen shows it.
-Account.pull().then(changed => { if (changed) { applyTheme(); route(); } });
-window.addEventListener('online', () => Account.save().catch(() => {}));
+Account.pull().then(changed => { if (changed) { applyTheme(); applyMotion(); route(); } });
+window.addEventListener('online', () => { Account.save().catch(() => {}); Model.ping().then(() => { if (!location.hash || location.hash === '#/home') prefetch(); }); });
+window.addEventListener('offline', () => Model.ping());
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') Account.save().catch(() => {}); });
 Model.ping().then(() => {
   const ms = $('#modelStatus');

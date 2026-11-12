@@ -29,11 +29,33 @@ A reading-only app in the same pixel family style. Open `app/index.html` (or htt
 - **Saved to the 128bit family account:** Grown-ups → Settings → 128bit family account, signed in with the same email and password as 128bit Play. Progress (level, booklet, scores, streak, words, story ideas, settings) saves automatically a few seconds after each change, when going offline→online, and when the app is closed, using the project's existing `get_settings` / `put_settings` functions under the app key `bitschool-reading`. A new device or reinstall gets it back on sign-in. If two devices both made progress, saving merges them (every sheet kept, the higher level kept) instead of overwriting. Events (`worksheet.done`, `reading.session`, `level.up`, `placement.done`) go to the shared family feed via `log_events`. Recordings, handwriting pictures, stories written ahead, and the downloaded story writer stay on each device. "Reset everything" signs out first, so it never erases the account copy. No database changes were needed.
 - **Grown-ups dashboard** (behind a times-table question): reading-speed and accuracy charts, level history, problem words, recordings, handwritten answers to mark, and settings.
 - **Colors:** six themes, or your own six colors (background, panels, buttons, highlights, text, apple), plus story text size.
+- **Animations:** screens slide in; buttons and tiles squish; the apple bounces and a pencil scribbles while a story is written, with a bar that fills; a new story opens like a page turning; each word he reads pops green and leaves a star; a right answer bursts stars with a "+1", a wrong one wobbles; the score stars pop in; a passed sheet gets a MASTERED stamp; a level up grows the apple, slides in the new level and rains stars and apples; the streak flame flickers and grows with the streak; goal stars pop in day by day; and a worm peeks out of the home apple now and then. Grown-ups → Settings → Reader → ANIMATIONS turns them off, and they stay off when the device is set to reduce motion. Everything that moves is a 128px pixel icon.
 - **Size rule:** the logo is a 128px pixel apple; every button, tile and icon is 128px or larger.
+
+### The story writer
+
+Stories, open-answer checking and word meanings come from an AI model. Grown-ups → Settings → Story writer has three choices: **On this device** (Qwen, downloaded once), **Cloud AI** (fastest; needs internet and a key), or **On a computer (Ollama)**.
+
+**Why it's faster now (1.7.0):**
+- **The shelf.** Stories are written ahead: one for each of his three favorite kinds of story at his level, one for SURPRISE ME, and one for the next level. That's five favorites while the device is charging, and only one on a low battery. Writing ahead also runs during Word Work. A picker tile that says "Ready now!" opens straight away.
+- **He reads while the questions are written.** A story is written in two steps: the story, then (as a follow-up turn) its questions, words and circle task. He starts reading after the first step. If the questions aren't done when he gets there, he sees "Getting your questions ready…".
+- **The phone doesn't read things twice.** For the questions step, the on-device engine carries on from the story it just wrote instead of reading the instructions and story again. Qwen3.5's memory can't be partly rewound, so re-reading was the only other way. On a 4-core test machine the questions started after 1.7 s instead of 4.9 s.
+- **JSON on one line.** The grammar on the phone no longer lets the model write newlines and indentation between JSON values, which cut about a third of the tokens. On the same machine the story step went from 28 s to 18 s, and the whole sheet from about 65 s to 44 s.
+- **Fixed, not rewritten.** A story that runs long is cut at the end of a sentence. Questions, words, or a circle sentence that don't fit the story are dropped, and if the questions fail completely he gets "What happened in this story?". A story that is rejected (too short, too hard, not kid-safe) is written again with the reason ("use shorter sentences and easier words"), up to three tries.
+- **His pick comes first.** If the device is writing a shelf story he didn't pick, it stops so his story gets the processor. While Whisper listens to him read, story writing pauses so listening isn't slowed down.
+
+### Cloud AI
+
+Grown-ups → Settings → Story writer → **Cloud AI**. Choose **Claude** and a model: Claude Opus 5.5 (the best stories, about 5¢ a story), Claude Sonnet 5.5 (about 2¢), or Claude Haiku 5.5 (the fastest, well under 1¢). Then paste an API key from console.anthropic.com and press SAVE & TEST. **Other (OpenAI-compatible)** takes any service's address, model name and key. These prices are rough guesses for one story with its questions.
+
+- A story comes back in seconds instead of a minute or two on a phone. Answer checking and word meanings use it too.
+- Requests go straight from the app to the service (`api.anthropic.com` for Claude). They use structured JSON output, low effort, and a server-side fallback if a request is declined.
+- The key is stored only on that device. It is not part of the progress saved to the 128bit account, and it's blanked in exported data. Each request contains his level, the topic he picked, the grown-up's story instructions, and his name only if "use his name" is on.
+- Without internet, the story writer downloaded on the device takes over if there is one; otherwise the built-in stories are used.
 
 ### Stories from a model on the device (Qwen)
 
-Stories, open-answer checking and word meanings come from an AI model that runs on your own device. Nothing goes to the internet except the one-time model download.
+Nothing goes to the internet except the one-time model download.
 
 **In the Android and Windows apps:** Grown-ups → Settings → Story writer → **On this device**, then **Download** a model. It downloads from Hugging Face with a progress bar (stop and resume work), checks free space and memory, and starts writing stories for the current level. The app marks the one that fits the device:
 
@@ -44,17 +66,19 @@ Stories, open-answer checking and word meanings come from an AI model that runs 
 
 Why these: on the app's own prompt and checks at three levels (A-5, C-5, F-5), Qwen3.5 2B and 4B wrote usable stories at the right reading level. Gemma 4 E2B wrote smoother prose but pitched a 4th-grade story at grade 9 and is a 3.1 GB download; Gemma 3 1B broke the format (once writing questions in Spanish); Qwen3.5 0.8B wrote answer keys that contradicted its own stories.
 
-On a 4-core test machine (no GPU) a story took about 1–1.5 minutes with the 2B and 1.5–3 minutes with the 4B. The app writes the next stories in the background, so a child usually doesn't wait. Windows uses the graphics card through Vulkan when it can.
+On a 4-core test machine (no GPU) with the 2B, the story step now takes about 20 s and its questions about 25 s more, while he reads. The 4B takes roughly twice as long. Phones vary; most are slower than that machine. The shelf means a child usually doesn't wait at all. Windows uses the graphics card through Vulkan when it can.
 
 **From a website browser, or to use a bigger model:** choose **On a computer (Ollama)**. Install [Ollama](https://ollama.com), run `ollama pull qwen3.5:4b` (or `qwen3.5:9b`), start it with `OLLAMA_ORIGINS=*`, and for a phone on the same Wi-Fi also `OLLAMA_HOST=0.0.0.0` with the computer's address (e.g. `http://192.168.1.20:11434`) in Settings. LM Studio and llama.cpp work too (choose "OpenAI-compatible"). A vision model can read handwritten answers; without one they wait in **Check answers** for a grown-up.
 
-Every story is checked before he sees it: the right length, a reading level not far above his level (Flesch-Kincaid), real questions whose answers are in the passage, vocabulary words that appear in the story, and nothing copied from the instructions. A story that fails is rewritten once; after that the 16 built-in stories (two per letter, all original) are used.
+Every story is checked before he sees it: the right length (cut at a sentence if it runs long), a reading level not far above his level (Flesch-Kincaid), kid-safe wording, real questions whose answers are in the passage, vocabulary words and circle sentences that appear in the story, and nothing copied from the instructions. A rejected story is written again with the reason, up to three tries; after that the 16 built-in stories (two per letter, all original) are used.
 
 ### Known limits
 
 - Speech recognition in Chrome and Edge goes through the browser maker's servers, and it is less accurate with young voices. Helper mode, and the recordings, are the backup. A fully offline option would be whisper.cpp behind the same local server.
 - Small models still slip sometimes (a detail that doesn't fit, a weak question). The checks and retry catch length, level and format problems, not every odd sentence; use **Write a sample story** in Settings to see what a model writes.
-- Progress lives in this browser's storage. Use Export in Settings to back it up. Events (`reading.session`, `level.up`, `placement.done`) are queued for the shared family feed but not sent yet.
+- Without signing in to the 128bit account, progress lives only in this device's storage; Export in Settings backs it up.
+- The cloud AI is called straight from the app with the key on that device, which suits a family app. For a shared or public install, the key would belong on a server (for example a Supabase Edge Function on the 128bit project) instead.
+- Calls to the cloud AI and the new animations were tested in headless Chromium with mocked replies, and the two-step writing with the real Qwen3.5 2B on a test machine, not yet on a real phone or Windows PC.
 
 ### Windows .exe and Android .apk (`native/`)
 

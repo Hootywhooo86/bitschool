@@ -7,7 +7,7 @@ const path = require('path');
 const { Readable } = require('stream');
 const { pipeline } = require('stream/promises');
 
-let lib, jinja, llama, model, context, sequence, loadedFile = null, genAbort = null, dlAbort = null;
+let lib, jinja, llama, model, context, sequence, loadedFile = null, genAbort = null, dlAbort = null, lastOut = "";
 
 const dir = () => { const d = path.join(app.getPath('userData'), 'models'); fs.mkdirSync(d, { recursive: true }); return d; };
 // Only plain file names: models live in one folder.
@@ -24,7 +24,7 @@ async function unload() {
   sequence = null;
   if (context) { await context.dispose(); context = null; }
   if (model) { await model.dispose(); model = null; }
-  loadedFile = null;
+  loadedFile = null; lastOut = "";
 }
 
 const handlers = {
@@ -79,7 +79,7 @@ const handlers = {
     loadedFile = file;
   },
 
-  async generate(e, { system, user, schema, maxTokens = 1500, temperature = 0.7 }) {
+  async generate(e, { system, history, user, schema, maxTokens = 1500, temperature = 0.7 }) {
     if (!model) throw new Error('No model loaded');
     const { LlamaCompletion } = await engine();
     // The model's own chat template rendered the way llama.cpp does, with thinking turned off
@@ -87,28 +87,42 @@ const handlers = {
     const template = model.fileInfo.metadata.tokenizer.chat_template;
     const prompt = template
       ? new jinja.Template(template).render({
-          messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
+          messages: [{ role: 'system', content: system }, ...(history ? JSON.parse(history) : []), { role: 'user', content: user }],
           add_generation_prompt: true, enable_thinking: false,
           bos_token: model.tokens.bosString || '', eos_token: model.tokens.eosString || '',
         })
       : system + '\n\n' + user + '\n\n';
     const grammar = schema ? await llama.createGrammarForJsonSchema(JSON.parse(schema)) : undefined;
-    await sequence.clearHistory();
+    // A follow-up about the reply just written (the story, then its questions): the sequence already holds
+    // that turn, so carry on from it. The template rewrites earlier turns, and Qwen3.5's recurrent layers
+    // can't drop the end of the sequence, so re-rendering would mean reading everything again.
+    const turns = history ? JSON.parse(history) : [];
+    const last = turns[turns.length - 1], genAt = prompt.lastIndexOf('<|im_start|>assistant\n');
+    let tokens = null;
+    if (last && last.role === 'assistant' && lastOut && last.content === lastOut && genAt >= 0 && sequence.contextTokens.length) {
+      const more = model.tokenize('<|im_end|>\n<|im_start|>user\n' + user + '<|im_end|>\n' + prompt.slice(genAt), true);
+      if (sequence.contextTokens.length + more.length + 64 < context.contextSize) tokens = [...sequence.contextTokens, ...more];
+    }
+    lastOut = '';
+    // No clearHistory: LlamaCompletion keeps the part of the sequence this prompt starts with (the
+    // instructions, and for a follow-up turn the story too) and only reads the rest.
     const completion = new LlamaCompletion({ contextSequence: sequence });
     genAbort = new AbortController();
     let n = 0;
     try {
-      const text = await completion.generateCompletion(model.tokenize(prompt, true), {
+      const text = await completion.generateCompletion(tokens || model.tokenize(prompt, true), {
         grammar, maxTokens, temperature, topK: 20, topP: 0.8,
         repeatPenalty: { lastTokens: 256, penalty: 1, presencePenalty: 1.5 },
         signal: genAbort.signal, stopOnAbortSignal: true,
         onTextChunk: () => { if (++n % 8 === 0) e.sender.send('llm-event', { event: 'progress', data: { tokens: n } }); },
       });
+      if (!genAbort.signal.aborted) lastOut = text;
       return { text };
     } finally { completion.dispose({ disposeSequence: false }); }
   },
 
   async stop() { if (genAbort) genAbort.abort(); },
+  async pause() {}, // Windows has no Whisper listening to make room for
   async unload() { await unload(); },
 };
 

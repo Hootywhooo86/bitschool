@@ -43,6 +43,8 @@ function streamRecognizer(name, settleMs, model) {
         await on('error', d => this._fail(d.error));
         await on('warning', d => { if (d.error === 'network' && !warned) { warned = true; toast('Listening works best with internet on this phone'); } });
         await on('end', () => this._end());
+        // Whisper and the story writer would share the phone's processor: writing waits while it listens.
+        if (model) Device.pause(true);
         await plugin.start(model ? { file: model.file, story: this.story || '' } : { language: this.lang, continuous: this.continuous, expect: this.expect || [] });
       } catch (e) { this._fail(String((e && e.message) || e)); }
     }
@@ -52,6 +54,7 @@ function streamRecognizer(name, settleMs, model) {
       if (this.onresult) this.onresult({ results });
     }
     _end() {
+      if (model) Device.pause(false);
       if (this._settle) { this._settle(); this._settle = null; }
       if (!this._live) return;
       this._live = false;
@@ -60,7 +63,7 @@ function streamRecognizer(name, settleMs, model) {
       if (this.onend) this.onend();
     }
     _fail(error) { this._live = false; this._cleanup(); if (this.onerror) this.onerror({ error }); if (this.onend) this.onend(); }
-    _cleanup() { this._handles.forEach(h => h.remove()); this._handles = []; }
+    _cleanup() { if (model) Device.pause(false); this._handles.forEach(h => h.remove()); this._handles = []; }
     stop() {
       if (!this._live) return Promise.resolve({}); // already finished: nothing to wait for
       const ended = new Promise(res => { this._settle = res; setTimeout(res, settleMs); });

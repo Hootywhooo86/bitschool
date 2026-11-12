@@ -26,7 +26,8 @@ public class LocalLlmPlugin extends Plugin {
 
     static native void nInit(String libDir);
     static native String nLoad(String path, int nCtx, int nThreads);
-    static native String nGenerate(String system, String user, String schema, int maxTokens, float temperature, Progress p);
+    static native void nPause(boolean on);
+    static native String nGenerate(String system, String history, String user, String schema, int maxTokens, float temperature, Progress p);
     static native void nStop();
     static native void nUnload();
 
@@ -157,13 +158,13 @@ public class LocalLlmPlugin extends Plugin {
 
     @PluginMethod
     public void generate(PluginCall call) {
-        String system = call.getString("system", ""), user = call.getString("user", ""), schema = call.getString("schema", "");
+        String system = call.getString("system", ""), history = call.getString("history", ""), user = call.getString("user", ""), schema = call.getString("schema", "");
         int maxTokens = call.getInt("maxTokens", 1500);
         float temperature = call.getFloat("temperature", 0.8f);
         runner.execute(() -> {
             if (loadedFile == null) { call.reject("No model loaded"); return; }
             try {
-                String text = nGenerate(system, user, schema, maxTokens, temperature, n -> {
+                String text = nGenerate(system, history, user, schema, maxTokens, temperature, n -> {
                     JSObject p = new JSObject();
                     p.put("tokens", n);
                     notifyListeners("progress", p);
@@ -180,6 +181,10 @@ public class LocalLlmPlugin extends Plugin {
 
     @PluginMethod
     public void stop(PluginCall call) { nStop(); call.resolve(); }
+
+    // Story writing waits while the app listens to him read with Whisper.
+    @PluginMethod
+    public void pause(PluginCall call) { nPause(call.getBoolean("on", false)); call.resolve(); }
 
     @PluginMethod
     public void unload(PluginCall call) {

@@ -115,6 +115,24 @@ const ICONS = {
     'kk.kaaaaaaaak.kk', '..kkaaakkaaakk..', 'kk.kaaakkaaak.kk', '..kkaaakkaaakk..',
     'kk.kaaakkaaak.kk', '....kkkkkkkk....', '................', '................',
   ],
+  pencil: [
+    '................', '............kk..', '...........krrk.', '..........krrrk.',
+    '.........kyYk...', '........kyYk....', '.......kyYk.....', '......kyYk......',
+    '.....kyYk.......', '....kyYk........', '...kyYk.........', '..kyYk..........',
+    '.kbbk...........', '.bbkk...........', '.kk.............', 'k...............',
+  ],
+  flame: [
+    '................', '.......k........', '......kyk.......', '......kyyk......',
+    '.....kyyyk......', '.....kyyyyk..k..', '....kyyryyk.kyk.', '...kyyrryyykyyk.',
+    '...kyrrrryyyyyk.', '..kyyrrrrryyyyk.', '..kyrrrhrrryyk..', '..kyrrhhhrrryk..',
+    '..kyrrhhhhrryk..', '...kyrrhhrryk...', '....kkyyyykk....', '......kkkk......',
+  ],
+  worm: [
+    '................', '................', '.....kkkkkk.....', '....kggggggk....',
+    '...kghhgghhgk...', '...kghkgghkgk...', '...kggggggggk...', '...kgggkkgggk...',
+    '....kgggggggk...', '.....kGggggk....', '.....kgGggk.....', '....kggGgk......',
+    '....kgggGk......', '.....kggGk......', '......kgGk......', '......kggk......',
+  ],
   sheet: [
     '................', '..kkkkkkkkkk....', '..kwwwwwwwwk....', '..kwmmmmmmwk....',
     '..kwwwwwwwwk....', '..kwmmmmmwwk....', '..kwwwwwwwwk....', '..kwmmmmmmwk....',

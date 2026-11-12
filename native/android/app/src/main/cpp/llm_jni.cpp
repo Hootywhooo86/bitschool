@@ -31,12 +31,12 @@ Java_com_bitschool_reading_LocalLlmPlugin_nLoad(JNIEnv * env, jclass, jstring pa
 }
 
 extern "C" JNIEXPORT jstring JNICALL
-Java_com_bitschool_reading_LocalLlmPlugin_nGenerate(JNIEnv * env, jclass, jstring system, jstring user, jstring schema,
+Java_com_bitschool_reading_LocalLlmPlugin_nGenerate(JNIEnv * env, jclass, jstring system, jstring history, jstring user, jstring schema,
                                                      jint max_tokens, jfloat temperature, jobject progress) {
     jclass cls = progress ? env->GetObjectClass(progress) : nullptr;
     jmethodID on_tokens = cls ? env->GetMethodID(cls, "onTokens", "(I)Z") : nullptr;
     try {
-        std::string out = llm::generate(str(env, system), str(env, user), str(env, schema), max_tokens, temperature,
+        std::string out = llm::generate(str(env, system), str(env, history), str(env, user), str(env, schema), max_tokens, temperature,
             [&](int n) { return on_tokens ? (bool) env->CallBooleanMethod(progress, on_tokens, n) : true; });
         return env->NewStringUTF(out.c_str());
     } catch (const std::exception & e) {
@@ -47,6 +47,9 @@ Java_com_bitschool_reading_LocalLlmPlugin_nGenerate(JNIEnv * env, jclass, jstrin
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_bitschool_reading_LocalLlmPlugin_nStop(JNIEnv *, jclass) { llm::stop(); }
+
+extern "C" JNIEXPORT void JNICALL
+Java_com_bitschool_reading_LocalLlmPlugin_nPause(JNIEnv *, jclass, jboolean on) { llm::pause(on); }
 
 extern "C" JNIEXPORT void JNICALL
 Java_com_bitschool_reading_LocalLlmPlugin_nUnload(JNIEnv *, jclass) { llm::unload(); }

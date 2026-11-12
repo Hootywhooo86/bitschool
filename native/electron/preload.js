@@ -11,7 +11,7 @@ const call = name => args => ipcRenderer.invoke('llm:' + name, args).catch(err =
 contextBridge.exposeInMainWorld('bitschoolNative', {
   llm: {
     info: call('info'), download: call('download'), cancelDownload: call('cancelDownload'), remove: call('remove'),
-    loadModel: call('loadModel'), generate: call('generate'), stop: call('stop'), unload: call('unload'),
+    loadModel: call('loadModel'), generate: call('generate'), stop: call('stop'), pause: call('pause'), unload: call('unload'),
     addListener(event, fn) {
       (listeners[event] = listeners[event] || []).push(fn);
       return Promise.resolve({ remove() { listeners[event] = listeners[event].filter(f => f !== fn); } });

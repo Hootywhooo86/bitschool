@@ -47,18 +47,23 @@ const Device = {
   async remove(m) { await this.api.remove({ file: m.file }); await this.refresh(); },
 
   // One system + user turn on the selected model. Loads it the first time.
-  async chat(system, user, { schema, onProgress } = {}) {
+  // history: earlier turns of the same job ([{role, content}]); the engine keeps what it already read.
+  async chat(system, user, { schema, onProgress, history = [], maxTokens = 1500 } = {}) {
     const m = this.selected();
     if (!this.has(m)) throw new Error('Download a story writer in Grown-ups → Settings first');
     if (this.state.loaded !== m.file) {
-      await this.api.loadModel({ file: m.file, nCtx: 4096 });
+      await this.api.loadModel({ file: m.file, nCtx: 6144 }); // room for the story, its questions and the instructions
       this.state.loaded = m.file;
     }
     const h = onProgress ? await this.api.addListener('progress', p => onProgress(p.tokens)) : null;
     this.busy = true;
     try {
-      const r = await this.api.generate({ system, user, schema: schema ? JSON.stringify(schema) : '', maxTokens: 1500, temperature: 0.8 });
+      const r = await this.api.generate({ system, history: history.length ? JSON.stringify(history) : '', user, schema: schema ? JSON.stringify(schema) : '', maxTokens, temperature: 0.8 });
       return r.text;
     } finally { this.busy = false; h && h.remove(); }
   },
+  // Stops the story being written now (a different one is needed first).
+  stop() { if (this.available() && this.busy) this.api.stop().catch(() => {}); },
+  // Story writing waits while Whisper listens to him read, so listening keeps the processor.
+  pause(on) { if (this.available() && this.api.pause) this.api.pause({ on }).catch(() => {}); },
 };
