@@ -396,6 +396,8 @@ function mountReader(el, passage, { onDone, nextLabel = 'NEXT ▶' }) {
     btn('done').classList.remove('hidden');
     paintMode(); paint();
     recorder = mode === 'mic' && !Speech.canRecordWhileListening ? null : await startRecorder();
+    // I'M DONE tapped while the recorder was still starting: the reading is already over.
+    if (!running) { if (recorder) recorder.stop().catch(() => {}); recorder = null; return; }
     if (mode === 'mic') startRecog();
     timer = setInterval(tick, 500);
   }

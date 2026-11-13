@@ -404,6 +404,7 @@ function deviceModelsHTML() {
   const st = Device.state, rec = Device.recommended(), sel = Device.selected();
   const gb = b => (b / 1e9).toFixed(1) + ' GB';
   return `
+    <div data-llmproblem></div>
     <p class="muted">This ${Device.isPC() ? 'computer' : 'device'}: ${st.ram ? gb(st.ram) + ' memory · ' : ''}${st.freeSpace ? gb(st.freeSpace) + ' free space' : ''}</p>
     <div class="model-list">${DEVICE_MODELS.map(dm => {
       const has = Device.has(dm), dl = Device.downloading && Device.downloading.id === dm.id;
@@ -425,6 +426,7 @@ function deviceModelsHTML() {
 
 function wireDeviceModels(el, rerender) {
   const m = Store.state.settings.model;
+  showLlmProblem(el, rerender);
   $$('[data-model]', el).forEach(card => {
     const dm = Device.model(card.dataset.model);
     const go = (sel, fn) => { const b = $(sel, card); if (b) b.onclick = fn; };
@@ -511,13 +513,16 @@ function wireListen(el, rerender) {
   });
 }
 
-// The cloud story writer: Claude, or any OpenAI-compatible service, with the grown-up's own key.
+// The cloud story writer: Claude, or an OpenAI-style service (Groq, OpenAI, OpenRouter, Gemini…), with
+// the grown-up's own key.
+let cloudModelList = [];
 function cloudHTML() {
   const c = Cloud.cfg(), claude = c.provider === 'claude';
+  const svc = CLOUD_SERVICES.find(x => x.id === c.service) || CLOUD_SERVICES[0];
   return `
     <div class="row wrap-row">
       <button class="btn alt ${claude ? 'on' : ''}" data-provider="claude"><span>CLAUDE</span></button>
-      <button class="btn alt ${!claude ? 'on' : ''}" data-provider="openai"><span>OTHER (OPENAI-COMPATIBLE)</span></button>
+      <button class="btn alt ${!claude ? 'on' : ''}" data-provider="openai"><span>GROQ, OPENAI & OTHERS</span></button>
     </div>
     ${claude ? `
       <div class="model-list">${CLOUD_MODELS.map(cm => `<div class="model-card ${c.name === cm.id ? 'on' : ''}">
@@ -525,39 +530,116 @@ function cloudHTML() {
         <p>${esc(cm.note)}</p>
         ${c.name === cm.id ? '' : `<div class="row wrap-row"><button class="btn" data-cloudmodel="${cm.id}"><span>USE THIS ONE</span></button></div>`}
       </div>`).join('')}</div>
-      <p class="muted">Prices are rough guesses for one story with its questions.</p>` : `
+      <p class="muted">Prices are rough guesses for one story with its questions. Get a key at console.anthropic.com.</p>` : `
+      <div class="row wrap-row">${CLOUD_SERVICES.map(x => `<button class="btn alt ${svc === x ? 'on' : ''}" data-service="${x.id}"><span>${esc(x.name.toUpperCase())}</span></button>`).join('')}</div>
+      ${svc.note ? `<p class="muted">${esc(svc.note)}</p>` : ''}
+      ${svc.keys ? `<p class="muted">Get a key at ${esc(svc.keys)}</p>` : ''}
       <div class="form-grid">
-        <label>Address (the part before /v1)<input class="input" data-cloudendpoint placeholder="https://api.example.com" value="${esc(c.endpoint)}"></label>
-        <label>Model name<input class="input" data-cloudname value="${esc(c.provider === 'openai' ? c.name : '')}"></label>
+        <label>Address${svc.id === 'other' ? ' (like https://api.example.com/v1)' : ''}<input class="input" data-cloudendpoint value="${esc(c.endpoint || svc.endpoint)}" ${svc.id === 'other' ? '' : 'readonly'}></label>
+        <label>Model${cloudModelList.length ? '' : ' (press LOAD MODELS after the key)'}
+          ${cloudModelList.length ? `<select class="input" data-cloudname>${cloudModelList.map(id => `<option value="${esc(id)}" ${id === c.name ? 'selected' : ''}>${esc(id)}</option>`).join('')}</select>`
+            : `<input class="input" data-cloudname value="${esc(c.name)}" placeholder="Loaded from the service">`}</label>
       </div>`}
     <div class="form-grid">
-      <label>${claude ? 'Claude API key (from console.anthropic.com)' : 'API key'}<input class="input" type="password" autocomplete="off" data-cloudkey placeholder="${c.key ? 'Saved — type a new one to change it' : 'Paste the key here'}"></label>
+      <label>API key<input class="input" type="password" autocomplete="off" data-cloudkey placeholder="${c.key ? 'Saved — type a new one to change it' : 'Paste the key here'}"></label>
     </div>
-    <div class="row wrap-row"><button class="btn" data-cloudsave><span>SAVE & TEST</span></button>${c.key ? '<button class="btn warn" data-cloudforget><span>REMOVE KEY</span></button>' : ''}</div>
+    <div class="row wrap-row">${claude ? '' : '<button class="btn alt" data-cloudlist><span>LOAD MODELS</span></button>'}<button class="btn" data-cloudsave><span>SAVE & TEST</span></button>${c.key ? '<button class="btn warn" data-cloudforget><span>REMOVE KEY</span></button>' : ''}</div>
     <p class="muted">The key is kept only on this ${Device.isPC() ? 'computer' : 'device'}. It isn't saved to the 128bit account or in exported data. Each story request (his level, the topic he picked, your story instructions, and his name if you turned that on) goes to the cloud AI. ${Device.ready() ? 'Without internet, the story writer downloaded on this device takes over.' : 'Without internet, the built-in stories are used.'}</p>`;
+}
+
+// A good default from a service's model list: a strong general model that can write JSON.
+function pickCloudModel(list) {
+  const prefs = [/gpt-oss-120b/, /llama-3\.3-70b/, /kimi-k2/, /llama-4-maverick/, /gpt-5-mini/, /gpt-4\.1-mini/, /gpt-4o-mini/, /gemini-[\d.]+-flash$/, /flash/];
+  for (const re of prefs) { const m = list.find(id => re.test(id) && !/guard|whisper|tts|embed|audio|vision-preview/i.test(id)); if (m) return m; }
+  return list.find(id => !/guard|whisper|tts|embed|audio/i.test(id)) || list[0] || '';
 }
 
 function wireCloud(el, rerender) {
   const c = Cloud.cfg();
+  const status = msg => { const m = $('[data-mstatus]', el); if (m) m.textContent = msg; };
+  // Reads what the grown-up typed into the form.
+  const takeForm = () => {
+    const key = $('[data-cloudkey]', el) && $('[data-cloudkey]', el).value.trim();
+    if (key) c.key = key;
+    if (c.provider === 'openai') {
+      const svc = CLOUD_SERVICES.find(x => x.id === c.service) || CLOUD_SERVICES[0];
+      c.endpoint = svc.id === 'other' ? $('[data-cloudendpoint]', el).value.trim() : svc.endpoint;
+      const nm = $('[data-cloudname]', el); if (nm) c.name = nm.value.trim();
+    }
+    Store.save();
+  };
+  const loadModels = async () => {
+    takeForm();
+    if (!c.key) { toast('Paste the API key first'); return false; }
+    if (!c.endpoint) { toast('Fill in the address'); return false; }
+    status('Getting the list of models…');
+    try {
+      cloudModelList = await Cloud.models(c);
+      if (!cloudModelList.length) throw new Error('The service listed no models');
+      if (!cloudModelList.includes(c.name)) c.name = pickCloudModel(cloudModelList);
+      Store.save(); rerender();
+      status(`✓ ${cloudModelList.length} models found. Using ${c.name} — change it above if you like, then press SAVE & TEST.`);
+      return true;
+    } catch (e) { status('✗ ' + e.message); return false; }
+  };
   $$('[data-provider]', el).forEach(b => b.onclick = () => {
-    c.provider = b.dataset.provider;
+    c.provider = b.dataset.provider; cloudModelList = [];
     c.name = c.provider === 'claude' ? 'claude-opus-5-5' : '';
+    if (c.provider === 'openai') c.endpoint = (CLOUD_SERVICES.find(x => x.id === c.service) || CLOUD_SERVICES[0]).endpoint;
+    Store.save(); rerender();
+  });
+  $$('[data-service]', el).forEach(b => b.onclick = () => {
+    c.service = b.dataset.service; cloudModelList = []; c.name = '';
+    c.endpoint = (CLOUD_SERVICES.find(x => x.id === c.service) || {}).endpoint || '';
     Store.save(); rerender();
   });
   $$('[data-cloudmodel]', el).forEach(b => b.onclick = () => { c.name = b.dataset.cloudmodel; Store.save(); rerender(); toast('Using ' + CLOUD_MODELS.find(x => x.id === c.name).name); });
+  if ($('[data-cloudlist]', el)) $('[data-cloudlist]', el).onclick = loadModels;
+  if ($('[data-cloudname]', el)) $('[data-cloudname]', el).onchange = () => { takeForm(); toast('Using ' + c.name); };
   const save = $('[data-cloudsave]', el);
   if (save) save.onclick = async () => {
-    const key = $('[data-cloudkey]', el).value.trim();
-    if (key) c.key = key;
-    if (c.provider === 'openai') { c.endpoint = $('[data-cloudendpoint]', el).value.trim(); c.name = $('[data-cloudname]', el).value.trim(); }
+    takeForm();
     if (!c.key) return toast('Paste the API key first');
-    if (c.provider === 'openai' && (!c.endpoint || !c.name)) return toast('Fill in the address and model name');
-    Store.save();
-    const status = $('[data-mstatus]', el);
-    status.textContent = 'Testing…'; save.disabled = true;
-    try { await Cloud.test(); await Model.ping(); rerender(); $('[data-mstatus]', el).textContent = '✓ The cloud AI answered. New stories will be written in seconds.'; prefetch(); }
-    catch (e) { status.textContent = '✗ ' + e.message; save.disabled = false; }
+    if (c.provider === 'openai' && !c.name && !(await loadModels())) return;
+    save.disabled = true;
+    status('Testing… asking ' + (c.provider === 'claude' ? 'Claude' : c.name) + ' for a tiny answer');
+    try {
+      await Cloud.test();
+      await Model.ping(); rerender();
+      status('✓ The cloud AI answered. New stories will be written in seconds.');
+      prefetch();
+    } catch (e) { status('✗ ' + e.message); save.disabled = false; }
   };
   const forget = $('[data-cloudforget]', el);
-  if (forget) forget.onclick = async () => { c.key = ''; Store.save(); await Model.ping(); rerender(); toast('Key removed from this device'); };
+  if (forget) forget.onclick = async () => { c.key = ''; cloudModelList = []; Store.save(); await Model.ping(); rerender(); toast('Key removed from this device'); };
+}
+
+// If the story writer stopped on this device: when, why, and a report a grown-up can copy and send.
+async function showLlmProblem(el, rerender) {
+  const box = $('[data-llmproblem]', el);
+  if (!box) return;
+  const p = await Device.problem();
+  if (!p || (!p.crashes && !p.problem)) return;
+  const off = p.crashes >= p.max;
+  box.innerHTML = `<div class="panel feedback ${off ? 'bad' : 'wait'}">
+    <p>${off ? 'The story writer kept stopping on this device, so it is turned off. The app uses the built-in stories (or the Cloud AI, if you set one up).'
+      : 'The story writer stopped last time. It now runs in safe mode (a simpler, slower setting) and tries again.'}
+      <br><span class="muted">${esc(p.problem)}</span></p>
+    <div class="row wrap-row">
+      ${off ? '<button class="btn" data-llmretry><span>TRY AGAIN</span></button>' : ''}
+      <button class="btn alt" data-llmreport><span>SHOW DETAILS</span></button>
+    </div></div>`;
+  if ($('[data-llmretry]', box)) $('[data-llmretry]', box).onclick = async () => { await Device.clearProblem(); await Model.ping(); toast('The story writer will try again'); rerender(); };
+  $('[data-llmreport]', box).onclick = () => {
+    const report = `bitschool ${typeof APP_VERSION !== 'undefined' ? APP_VERSION : ''}\nModel: ${(Device.selected() || {}).name || '-'}\nDevice: ${p.device}\nStopped: ${p.problem}\nCrashes in a row: ${p.crashes}, safe mode: ${p.safe}\n\n${p.log}`;
+    const mm = modal(`<h2>Story writer report</h2><p class="muted">Copy this and send it to whoever helps with the app.</p>
+      <textarea class="input" rows="12" readonly>${esc(report)}</textarea>
+      <div class="row wrap-row center-row"><button class="btn" data-x="copy"><span>COPY</span></button><button class="btn alt" data-x="close"><span>CLOSE</span></button></div>`);
+    $('[data-x=close]', mm.el).onclick = mm.close;
+    $('[data-x=copy]', mm.el).onclick = async () => {
+      const ta = $('textarea', mm.el);
+      try { await navigator.clipboard.writeText(report); } catch (e) { ta.select(); document.execCommand('copy'); }
+      toast('Copied');
+    };
+  };
 }

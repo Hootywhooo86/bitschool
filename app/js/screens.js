@@ -143,7 +143,7 @@ async function getPassage(level, onWait, onProgress, topic) {
         const whole = shelf.foreground = Model.writeStory(level, onProgress, topic, { onText: resolve });
         whole.then(resolve, reject).finally(() => { if (shelf.foreground === whole) shelf.foreground = null; prefetchSoon(); });
       });
-    } catch (e) { toast('The story writer had trouble — using a built-in story'); }
+    } catch (e) { toast((/stopped|turned off/i.test(e.message) ? e.message.split(' (')[0] : 'The story writer had trouble') + ' — using a built-in story'); }
   }
   const b = builtinFor(level, s.usedBuiltins);
   s.usedBuiltins = [...s.usedBuiltins.filter(x => x !== b.id), b.id].slice(-12);

@@ -24,6 +24,12 @@
 
         </activity>
 
+        <!-- The on-device story writer runs in its own process, so a crash there can't close the app. -->
+        <service
+            android:name=".LlmService"
+            android:process=":llm"
+            android:exported="false" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

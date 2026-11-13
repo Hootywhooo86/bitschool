@@ -58,8 +58,11 @@ std::string load(const std::string & path, int n_ctx, int n_threads) {
     if (!g_model) return "Could not open the model file";
     llama_context_params cp = llama_context_default_params();
     cp.n_ctx = n_ctx;
+    // Small compute batches: the buffer for the model's word scores is (vocabulary × batch), which for
+    // Qwen3.5's 248k-word vocabulary at 512 was about 500 MB. At 128 it is a quarter of that, which
+    // matters on a tablet with 3–4 GB of memory.
     cp.n_batch = 512;
-    cp.n_ubatch = 512;
+    cp.n_ubatch = 128;
     cp.n_threads = n_threads;
     cp.n_threads_batch = n_threads;
     g_ctx = llama_init_from_model(g_model, cp);

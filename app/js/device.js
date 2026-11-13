@@ -6,7 +6,7 @@ const DEVICE_MODELS = [
   { id: 'qwen3.5-2b', name: 'Qwen3.5 2B', file: 'Qwen3.5-2B-Q4_K_M.gguf', url: HF + 'Qwen3.5-2B-GGUF/resolve/main/Qwen3.5-2B-Q4_K_M.gguf',
     size: 1280835840, ramGB: 4, best: 'phone', note: 'Best for phones and tablets. Good stories at every level.' },
   { id: 'qwen3.5-4b', name: 'Qwen3.5 4B', file: 'Qwen3.5-4B-Q4_K_M.gguf', url: HF + 'Qwen3.5-4B-GGUF/resolve/main/Qwen3.5-4B-Q4_K_M.gguf',
-    size: 2740937888, ramGB: 8, best: 'pc', note: 'Best stories. For computers and tablets with 8 GB of memory or more; slower.' },
+    size: 2740937888, ramGB: 8, best: 'pc', note: 'Best stories, for Windows computers. Too big for most tablets: use the 2B there.' },
 ];
 
 const Device = {
@@ -21,8 +21,9 @@ const Device = {
   has(m) { return !!m && (this.state.files || []).some(f => f.file === m.file && f.size >= m.size * 0.98); },
   ready() { return this.available() && this.has(this.selected()); },
   // Which model to suggest for this device.
+  // The 4B needs a computer: on phones and tablets it is slow and can run out of memory.
   recommended() {
-    if (this.isPC() || this.state.ram >= 7.5e9) return this.model('qwen3.5-4b');
+    if (this.isPC() && this.state.ram >= 7.5e9) return this.model('qwen3.5-4b');
     return this.model('qwen3.5-2b');
   },
 
@@ -51,8 +52,12 @@ const Device = {
   async chat(system, user, { schema, onProgress, history = [], maxTokens = 1500 } = {}) {
     const m = this.selected();
     if (!this.has(m)) throw new Error('Download a story writer in Grown-ups → Settings first');
+    // A crash of the story writer (Android runs it in its own process) is final for this request:
+    // nothing written ahead retries it straight away.
+    const crashed = e => { this.state.loaded = null; const err = new Error(e.message || String(e)); if (/stopped|turned off/i.test(err.message)) err.fatal = true; return err; };
     if (this.state.loaded !== m.file) {
-      await this.api.loadModel({ file: m.file, nCtx: 6144 }); // room for the story, its questions and the instructions
+      try { await this.api.loadModel({ file: m.file, nCtx: 4096 }); } // room for the instructions, the story and its questions
+      catch (e) { throw crashed(e); }
       this.state.loaded = m.file;
     }
     const h = onProgress ? await this.api.addListener('progress', p => onProgress(p.tokens)) : null;
@@ -60,8 +65,12 @@ const Device = {
     try {
       const r = await this.api.generate({ system, history: history.length ? JSON.stringify(history) : '', user, schema: schema ? JSON.stringify(schema) : '', maxTokens, temperature: 0.8 });
       return r.text;
-    } finally { this.busy = false; h && h.remove(); }
+    } catch (e) { throw crashed(e); }
+    finally { this.busy = false; h && h.remove(); }
   },
+  // Android: what went wrong with the story writer (the last crash, the device, the engine's log).
+  async problem() { return this.api && this.api.problem ? this.api.problem().catch(() => null) : null; },
+  async clearProblem() { if (this.api && this.api.clearProblem) await this.api.clearProblem().catch(() => {}); },
   // Stops the story being written now (a different one is needed first).
   stop() { if (this.available() && this.busy) this.api.stop().catch(() => {}); },
   // Story writing waits while Whisper listens to him read, so listening keeps the processor.

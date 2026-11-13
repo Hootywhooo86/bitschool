@@ -304,20 +304,71 @@ function keywordJudge(q, answer) {
   return { correct, feedback: correct ? 'Nice thinking — you got the main idea!' : 'Good try! A strong answer says: ' + q.idea + '.' };
 }
 
-// An OpenAI-style chat: LM Studio, llama.cpp's server, or a cloud service with a key.
-async function openaiChat(base, name, system, user, { images, timeout = 180000, schema, history = [], key } = {}) {
-  const content = images ? [{ type: 'text', text: user }, ...images.map(b => ({ type: 'image_url', image_url: { url: 'data:image/png;base64,' + b } }))] : user;
-  let r;
+// Web requests for the story writers. In the Android app they go through the app itself (Capacitor's
+// native HTTP), so a cloud service never blocks them the way it can block a web page (CORS).
+async function http(url, { method = 'POST', headers = {}, body, timeout = 120000 } = {}) {
+  const native = nativePlugin('CapacitorHttp');
   try {
-    r = await fetch(String(base).replace(/\/+$/, '') + '/v1/chat/completions', {
-      method: 'POST', signal: AbortSignal.timeout(timeout),
-      headers: { 'Content-Type': 'application/json', ...(key ? { Authorization: 'Bearer ' + key } : {}) },
-      body: JSON.stringify({ model: name, temperature: 0.8, response_format: schema ? { type: 'json_schema', json_schema: { name: 'answer', schema } } : { type: 'json_object' },
-        messages: [{ role: 'system', content: system }, ...history, { role: 'user', content }] }),
-    });
-  } catch (e) { const err = new Error("Couldn't reach the story writer (" + e.message + ')'); err.network = true; throw err; }
-  if (!r.ok) { const err = new Error('Model error ' + r.status + ': ' + (await r.text()).slice(0, 200)); if (r.status === 401 || r.status === 403) err.fatal = true; throw err; }
-  return (await r.json()).choices[0].message.content;
+    if (native) {
+      const r = await native.request({ url, method, headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...headers },
+        data: body, responseType: 'text', connectTimeout: 20000, readTimeout: timeout });
+      const text = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
+      return { status: r.status, ok: r.status >= 200 && r.status < 300, text };
+    }
+    const r = await fetch(url, { method, signal: AbortSignal.timeout(timeout), headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...headers }, body: body ? JSON.stringify(body) : undefined });
+    return { status: r.status, ok: r.ok, text: await r.text() };
+  } catch (e) {
+    const err = new Error("Couldn't reach " + new URL(url).host + ' — check the internet and the address (' + ((e && e.message) || e) + ')');
+    err.network = true; throw err;
+  }
+}
+// The service's own error message, if it sent one.
+function errorText(text) {
+  try { const j = JSON.parse(text); return (j.error && (j.error.message || j.error)) || j.message || text; } catch (e) { return String(text || '').slice(0, 200); }
+}
+
+// An OpenAI-style address, however it was typed: "https://api.groq.com/openai/v1",
+// "…/v1/chat/completions" or "http://localhost:1234" all become the base that /chat/completions follows.
+function apiBase(base) {
+  let b = String(base || '').trim().replace(/\/+$/, '').replace(/\/chat\/completions$/, '').replace(/\/models$/, '');
+  if (b && !/^https?:\/\//.test(b)) b = 'https://' + b;
+  try { if (!/\/v\d+[a-z0-9]*(\/|$)/i.test(new URL(b).pathname)) b += '/v1'; } catch (e) {}
+  return b;
+}
+
+// Models that turned down a JSON schema: ask them for plain JSON instead (the prompt describes the shape).
+const NO_SCHEMA = new Set();
+
+// An OpenAI-style chat: LM Studio, llama.cpp's server, or a cloud service with a key (Groq, OpenAI,
+// OpenRouter, Google Gemini…).
+async function openaiChat(base, name, system, user, { images, timeout = 180000, schema, history = [], key } = {}) {
+  const url = apiBase(base) + '/chat/completions', tag = url + '|' + name;
+  const content = images ? [{ type: 'text', text: user }, ...images.map(b => ({ type: 'image_url', image_url: { url: 'data:image/png;base64,' + b } }))] : user;
+  const ask = withSchema => http(url, {
+    headers: key ? { Authorization: 'Bearer ' + key } : {}, timeout,
+    body: { model: name, temperature: 0.8, response_format: withSchema ? { type: 'json_schema', json_schema: { name: 'answer', schema } } : { type: 'json_object' },
+      messages: [{ role: 'system', content: system }, ...history, { role: 'user', content }] },
+  });
+  let r = await ask(schema && !NO_SCHEMA.has(tag));
+  if (!r.ok && r.status === 400 && schema && !NO_SCHEMA.has(tag) && /response_format|json_schema|schema|structured|not support/i.test(r.text)) {
+    NO_SCHEMA.add(tag);
+    r = await ask(false);
+  }
+  if (!r.ok) {
+    const msg = errorText(r.text);
+    const err = new Error(r.status === 401 || r.status === 403 ? 'The key was not accepted (' + msg + ')'
+      : r.status === 404 ? 'Not found — check the address and model name (' + msg + ')'
+      : r.status === 429 ? 'The service is busy or out of free requests — try again in a minute (' + msg + ')'
+      : 'Error ' + r.status + ': ' + msg);
+    if ([400, 401, 403, 404].includes(r.status)) err.fatal = true;
+    if (r.status >= 500) err.network = true;
+    throw err;
+  }
+  let j;
+  try { j = JSON.parse(r.text); } catch (e) { throw new Error('The service sent something that isn\'t JSON'); }
+  const m = j.choices && j.choices[0] && j.choices[0].message;
+  if (!m || !m.content) throw new Error('The service sent an empty answer');
+  return m.content;
 }
 
 // The cloud story writer. The key a grown-up enters stays on this device: it is not part of the
@@ -327,10 +378,26 @@ const CLOUD_MODELS = [
   { id: 'claude-sonnet-5-5', name: 'Claude Sonnet 5.5', note: 'Great stories, about 2¢ a story.' },
   { id: 'claude-haiku-5-5', name: 'Claude Haiku 5.5', note: 'The fastest, and well under 1¢ a story.' },
 ];
+// Cloud services with an OpenAI-style API: the address is filled in, and the model list comes from
+// the service itself once the key is in.
+const CLOUD_SERVICES = [
+  { id: 'groq', name: 'Groq', endpoint: 'https://api.groq.com/openai/v1', keys: 'console.groq.com/keys', note: 'Very fast, with a free tier.' },
+  { id: 'openai', name: 'OpenAI', endpoint: 'https://api.openai.com/v1', keys: 'platform.openai.com/api-keys' },
+  { id: 'openrouter', name: 'OpenRouter', endpoint: 'https://openrouter.ai/api/v1', keys: 'openrouter.ai/keys' },
+  { id: 'gemini', name: 'Google Gemini', endpoint: 'https://generativelanguage.googleapis.com/v1beta/openai', keys: 'aistudio.google.com/apikey' },
+  { id: 'other', name: 'Other', endpoint: '' },
+];
 const Cloud = {
   cfg() {
     const m = Store.state.settings.model;
-    return (m.cloud = { provider: 'claude', key: '', name: 'claude-opus-5-5', endpoint: '', ...(m.cloud || {}) });
+    return (m.cloud = { provider: 'claude', key: '', name: 'claude-opus-5-5', endpoint: '', service: 'groq', ...(m.cloud || {}) });
+  },
+  // The models this key can use (OpenAI-style services list them at /models).
+  async models(c) {
+    const r = await http(apiBase(c.endpoint) + '/models', { method: 'GET', headers: { Authorization: 'Bearer ' + c.key }, timeout: 20000 });
+    if (!r.ok) throw new Error(r.status === 401 || r.status === 403 ? 'The key was not accepted' : r.status === 404 ? 'Nothing at that address — check it' : 'Error ' + r.status + ': ' + errorText(r.text));
+    const j = JSON.parse(r.text);
+    return (j.data || j.models || []).map(m => String(m.id || m.name || '').replace(/^models\//, '')).filter(Boolean).sort();
   },
   // Claude's Messages API, called straight from the app with the grown-up's key.
   async claude(c, system, user, { images, timeout = 120000, schema, history = [] } = {}) {
@@ -342,15 +409,14 @@ const Cloud = {
       output_config: { effort: 'low', ...(schema ? { format: { type: 'json_schema', schema: strictSchema(schema) } } : {}) },
     };
     const headers = {
-      'content-type': 'application/json', 'x-api-key': c.key, 'anthropic-version': '2026-10-21',
+      'x-api-key': c.key, 'anthropic-version': '2026-10-21',
       'anthropic-dangerous-direct-browser-access': 'true',
     };
     // If a request is declined, the server tries it again on a fitting model instead of failing.
     if (/^claude-(opus-5-5|sonnet-5-5|fable)/.test(body.model)) { body.fallbacks = 'default'; headers['anthropic-beta'] = 'server-side-fallback-2026-07-01'; }
-    let r;
-    try { r = await fetch('https://api.anthropic.com/v1/messages', { method: 'POST', signal: AbortSignal.timeout(timeout), headers, body: JSON.stringify(body) }); }
-    catch (e) { const err = new Error("Couldn't reach the cloud AI (" + e.message + ')'); err.network = true; throw err; }
-    const j = await r.json().catch(() => ({}));
+    const r = await http('https://api.anthropic.com/v1/messages', { headers, body, timeout });
+    let j = {};
+    try { j = JSON.parse(r.text); } catch (e) {}
     if (!r.ok) {
       const msg = (j.error && j.error.message) || ('error ' + r.status);
       const err = new Error(r.status === 401 ? 'The cloud AI key was not accepted — check it in Grown-ups → Settings'

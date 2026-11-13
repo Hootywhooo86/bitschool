@@ -46,7 +46,9 @@ Stories, open-answer checking and word meanings come from an AI model. Grown-ups
 
 ### Cloud AI
 
-Grown-ups → Settings → Story writer → **Cloud AI**. Choose **Claude** and a model: Claude Opus 5.5 (the best stories, about 5¢ a story), Claude Sonnet 5.5 (about 2¢), or Claude Haiku 5.5 (the fastest, well under 1¢). Then paste an API key from console.anthropic.com and press SAVE & TEST. **Other (OpenAI-compatible)** takes any service's address, model name and key. These prices are rough guesses for one story with its questions.
+Grown-ups → Settings → Story writer → **Cloud AI**. Choose **Claude** and a model: Claude Opus 5.5 (the best stories, about 5¢ a story), Claude Sonnet 5.5 (about 2¢), or Claude Haiku 5.5 (the fastest, well under 1¢). Then paste an API key from console.anthropic.com and press SAVE & TEST. These prices are rough guesses for one story with its questions.
+
+**Groq, OpenAI & others:** pick **Groq**, **OpenAI**, **OpenRouter** or **Google Gemini** (the address is filled in), or **Other** and type an OpenAI-style address (with or without `/v1` or `/chat/completions`). Paste the key and press **LOAD MODELS**: the list comes from the service, with a good default picked (for Groq, `openai/gpt-oss-120b` when it's there). If a model can't take a strict JSON schema, the app asks it for plain JSON instead. In the Android app these requests go through the app itself, so a service can't block them the way it can block a web page (CORS).
 
 - A story comes back in seconds instead of a minute or two on a phone. Answer checking and word meanings use it too.
 - Requests go straight from the app to the service (`api.anthropic.com` for Claude). They use structured JSON output, low effort, and a server-side fallback if a request is declined.
@@ -57,7 +59,9 @@ Grown-ups → Settings → Story writer → **Cloud AI**. Choose **Claude** and 
 
 Nothing goes to the internet except the one-time model download.
 
-**In the Android and Windows apps:** Grown-ups → Settings → Story writer → **On this device**, then **Download** a model. It downloads from Hugging Face with a progress bar (stop and resume work), checks free space and memory, and starts writing stories for the current level. The app marks the one that fits the device:
+**In the Android and Windows apps:** Grown-ups → Settings → Story writer → **On this device**, then **Download** a model. It downloads from Hugging Face with a progress bar (stop and resume work), checks free space and memory, and starts writing stories for the current level. The app marks the one that fits the device (the 2B on every phone and tablet):
+
+On Android the story writer runs in its own process (`LlmService`, `:llm`). If it crashes or Android stops it for memory, the app stays open, falls back to a built-in story, and the next try uses **safe mode** (only llama.cpp's plain ARMv8.0 CPU build, two threads). After three crashes in a row it turns itself off until a grown-up presses **TRY AGAIN**. Settings → Story writer shows when and why it stopped (from Android's own record) and a **SHOW DETAILS** report with the device, memory and the engine's log lines to copy and send. Its compute buffer is 128 MB instead of about 500 MB (smaller batches; Qwen3.5's vocabulary is 248k words).
 
 | Model | Download | Memory | Best for |
 |---|---|---|---|
