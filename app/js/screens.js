@@ -161,11 +161,13 @@ function shelfWants() {
   const st = Store.state, picks = st.storyPicks.filter(Boolean);
   const local = Model.cfg().api === 'device' || (Model.cfg().api === 'cloud' && !Cloud.cfg().key);
   const charging = !battery || battery.charging;
-  const many = !local ? 3 : charging ? 5 : battery.level < 0.25 ? 1 : 3;
+  // A cloud AI writes a story in seconds, and free tiers allow only so many words a minute: one story
+  // ahead is enough.
+  const many = !local ? 1 : charging ? 5 : battery.level < 0.25 ? 1 : 3;
   const here = picks.length ? picks.slice(0, many) : [null];
   if (picks.length && here.length < many) here.push(null); // and one for SURPRISE ME
   const next = Math.min(LEVEL_COUNT - 1, st.level + 1);
-  return [...here.map(t => [st.level, t]), ...(next !== st.level && (!local || many > 1) ? [[next, picks[0] || null]] : [])];
+  return [...here.map(t => [st.level, t]), ...(next !== st.level && local && many > 1 ? [[next, picks[0] || null]] : [])];
 }
 
 function prefetch() {
@@ -185,7 +187,9 @@ function prefetch() {
           if (p.style === styleKey()) { (st.cache[lv] = st.cache[lv] || []).push(p); Store.save(); }
           return p;
         });
-        try { await job.done; } catch (e) { if (cancel.stop || e.fatal || e.network) break; }
+        try { await job.done; } catch (e) { if (cancel.stop || e.fatal || e.network || e.rate) break; }
+        // Spread cloud requests out, so a free tier's per-minute limit is left for the story he picks.
+        if (Model.cfg().api === 'cloud' && Cloud.cfg().key) await sleep(20000);
       }
     } catch (e) {}
     shelf.job = null; shelf.running = null; shelf.cancel = null;

@@ -112,7 +112,7 @@ Reply {"title": "a short title", "text": "the passage"}.`;
         story = checkText(j, level);
       } catch (e) {
         halted();
-        if (e.fatal || e.network || attempt === 2) throw e;
+        if (e.fatal || e.network || e.rate || attempt === 2) throw e;
         why = `\n\nYour last try was not used: ${e.message}. Fix that.`;
       }
     }
@@ -128,7 +128,7 @@ Reply {"title": "a short title", "text": "the passage"}.`;
       for (let attempt = 0; attempt < 2; attempt++) {
         if (opts.cancel && opts.cancel.stop) break;
         try { return { ...base, ...checkTasks(await this.chat(STORY_SYSTEM, tasksPrompt(level), { schema: TASKS_SCHEMA, history, maxTokens: 900 }), story.text) }; }
-        catch (e) { if (e.fatal || e.network) break; }
+        catch (e) { if (e.fatal || e.network || e.rate) break; }
       }
       return { ...base, ...simpleTasks(story.text) };
     })();
@@ -227,6 +227,8 @@ const PLACEHOLDER = /\b(a question|correct answer|wrong answer|question about|on
 function checkText(j, level) {
   const s = storySpec(level);
   let text = String(j.text || '').replace(/\\n/g, '\n').replace(/[\s{}\[\]]+$/, '').replace(/^[\s>-]+(?=["“A-Z])/, '').trim();
+  // One sentence per line (some models do that) becomes normal paragraphs; blank lines still split them.
+  text = text.split(/\n\s*\n/).map(para => para.replace(/\s*\n\s*/g, ' ').trim()).filter(Boolean).join('\n\n');
   if (words(text).length > s.maxWords * 1.15) text = trimToWords(text, s.maxWords);
   const count = words(text).length;
   if (count < s.minWords * 0.75) throw new Error(`the story was ${count} words, it must be about ${s.words}`);
@@ -306,17 +308,29 @@ function keywordJudge(q, answer) {
 
 // Web requests for the story writers. In the Android app they go through the app itself (Capacitor's
 // native HTTP), so a cloud service never blocks them the way it can block a web page (CORS).
-async function http(url, { method = 'POST', headers = {}, body, timeout = 120000 } = {}) {
+async function http(url, opts = {}) {
+  for (let tries = 0; ; tries++) {
+    const r = await http1(url, opts);
+    if (r.status !== 429 || tries >= 3) return r;
+    // "Please try again in 3.09s" (Groq), or the retry-after header: wait that long, at most 25 s.
+    const m = /try again in ([\d.]+)\s*(ms|s)/i.exec(r.text), after = parseFloat(r.retryAfter);
+    const wait = m ? parseFloat(m[1]) * (m[2] === 'ms' ? 1 : 1000) : after > 0 ? after * 1000 : 5000 * (tries + 1);
+    if (wait > 25000) return r;
+    await sleep(wait + 400);
+  }
+}
+async function http1(url, { method = 'POST', headers = {}, body, timeout = 120000 } = {}) {
   const native = nativePlugin('CapacitorHttp');
   try {
     if (native) {
       const r = await native.request({ url, method, headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...headers },
         data: body, responseType: 'text', connectTimeout: 20000, readTimeout: timeout });
       const text = typeof r.data === 'string' ? r.data : JSON.stringify(r.data);
-      return { status: r.status, ok: r.status >= 200 && r.status < 300, text };
+      const h = r.headers || {}, retryAfter = h['retry-after'] || h['Retry-After'] || '';
+      return { status: r.status, ok: r.status >= 200 && r.status < 300, text, retryAfter };
     }
     const r = await fetch(url, { method, signal: AbortSignal.timeout(timeout), headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...headers }, body: body ? JSON.stringify(body) : undefined });
-    return { status: r.status, ok: r.ok, text: await r.text() };
+    return { status: r.status, ok: r.ok, text: await r.text(), retryAfter: r.headers.get('retry-after') || '' };
   } catch (e) {
     const err = new Error("Couldn't reach " + new URL(url).host + ' — check the internet and the address (' + ((e && e.message) || e) + ')');
     err.network = true; throw err;
@@ -336,23 +350,48 @@ function apiBase(base) {
   return b;
 }
 
-// Models that turned down a JSON schema: ask them for plain JSON instead (the prompt describes the shape).
-const NO_SCHEMA = new Set();
+// How strictly a service is asked for JSON: 0 = to the JSON schema, 1 = any JSON, 2 = no request (the
+// prompt describes the shape and the app reads the JSON out of the reply). A service/model that turns a
+// level down starts lower next time.
+const JSON_MODE = new Map();
+// Services that don't take reasoning_effort.
+const NO_EFFORT = new Set();
+
+// What the service sent back when it rejected its own model's reply (Groq: "Failed to validate JSON",
+// with the reply in failed_generation). Often it's fine, or nearly: the app's own checks decide.
+function failedGeneration(text) {
+  try { const j = JSON.parse(text), g = j.error && j.error.failed_generation; if (g) { parseJSON(g); return g; } } catch (e) {}
+  return null;
+}
 
 // An OpenAI-style chat: LM Studio, llama.cpp's server, or a cloud service with a key (Groq, OpenAI,
 // OpenRouter, Google Gemini…).
 async function openaiChat(base, name, system, user, { images, timeout = 180000, schema, history = [], key } = {}) {
   const url = apiBase(base) + '/chat/completions', tag = url + '|' + name;
   const content = images ? [{ type: 'text', text: user }, ...images.map(b => ({ type: 'image_url', image_url: { url: 'data:image/png;base64,' + b } }))] : user;
-  const ask = withSchema => http(url, {
-    headers: key ? { Authorization: 'Bearer ' + key } : {}, timeout,
-    body: { model: name, temperature: 0.8, response_format: withSchema ? { type: 'json_schema', json_schema: { name: 'answer', schema } } : { type: 'json_object' },
-      messages: [{ role: 'system', content: system }, ...history, { role: 'user', content }] },
-  });
-  let r = await ask(schema && !NO_SCHEMA.has(tag));
-  if (!r.ok && r.status === 400 && schema && !NO_SCHEMA.has(tag) && /response_format|json_schema|schema|structured|not support/i.test(r.text)) {
-    NO_SCHEMA.add(tag);
-    r = await ask(false);
+  const ask = mode => {
+    const body = { model: name, temperature: 0.8, messages: [{ role: 'system', content: system }, ...history, { role: 'user', content }] };
+    // The schema without size limits: the app checks those itself, and a service that enforces them
+    // throws away a whole story over one extra wrong answer.
+    if (mode === 0) body.response_format = { type: 'json_schema', json_schema: { name: 'answer', schema: strictSchema(schema) } };
+    if (mode === 1) body.response_format = { type: 'json_object' };
+    // gpt-oss thinks before it answers; a story for a child needs little of that, and it's faster.
+    if (/gpt-oss/i.test(name) && !NO_EFFORT.has(tag)) body.reasoning_effort = 'low';
+    return http(url, { headers: key ? { Authorization: 'Bearer ' + key } : {}, timeout, body });
+  };
+  let mode = JSON_MODE.has(tag) ? JSON_MODE.get(tag) : 0, r;
+  if (!schema && mode === 0) mode = 1;
+  for (;;) {
+    r = await ask(mode);
+    if (r.ok || r.status !== 400) break;
+    if (/reasoning_effort/i.test(r.text) && !NO_EFFORT.has(tag)) { NO_EFFORT.add(tag); continue; }
+    if (mode === 2) break;
+    const rejected = /json_validate_failed|failed to validate json|failed_generation/i.test(r.text);
+    if (rejected) { const g = failedGeneration(r.text); if (g) return g; }
+    else if (!/response_format|json_schema|json_object|schema|structured|not support/i.test(r.text)) break;
+    // The service can't do this level (or its model didn't manage it): one level looser.
+    mode++;
+    if (!rejected && schema) JSON_MODE.set(tag, mode);
   }
   if (!r.ok) {
     const msg = errorText(r.text);
@@ -360,8 +399,9 @@ async function openaiChat(base, name, system, user, { images, timeout = 180000, 
       : r.status === 404 ? 'Not found — check the address and model name (' + msg + ')'
       : r.status === 429 ? 'The service is busy or out of free requests — try again in a minute (' + msg + ')'
       : 'Error ' + r.status + ': ' + msg);
-    if ([400, 401, 403, 404].includes(r.status)) err.fatal = true;
+    if ([401, 403, 404].includes(r.status) || (r.status === 400 && !/json|generation/i.test(msg))) err.fatal = true;
     if (r.status >= 500) err.network = true;
+    if (r.status === 429) err.rate = true;
     throw err;
   }
   let j;
@@ -423,6 +463,7 @@ const Cloud = {
         : r.status === 429 || r.status === 529 ? 'The cloud AI is busy — try again in a minute' : 'Cloud AI: ' + msg);
       if (r.status === 401 || r.status === 403 || r.status === 400) err.fatal = true;
       if (r.status >= 500) err.network = true;
+      if (r.status === 429 || r.status === 529) err.rate = true;
       throw err;
     }
     if (j.stop_reason === 'refusal') throw new Error('The cloud AI would not write that one');
