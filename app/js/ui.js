@@ -46,6 +46,8 @@ function onColor(h) { return luminance(h) > 0.35 ? '#0b0b16' : '#ffffff'; }
 
 function applyTheme() {
   const t = Store.state.settings.theme, r = document.documentElement.style;
+  const look = Store.state.settings.look;
+  if (look && look !== 'classic' && LOOKS[look]) document.documentElement.dataset.look = look; else delete document.documentElement.dataset.look;
   const light = luminance(t.bg) > 0.4;
   const vars = {
     '--bg': t.bg, '--panel': t.panel, '--accent': t.accent, '--accent2': t.accent2, '--ink': t.ink, '--apple': t.apple,

@@ -342,3 +342,117 @@ footer{text-align:center;color:var(--muted);font-size:14px;padding:20px 0 40px}
 body.calm *,body.calm *::before,body.calm *::after{animation:none!important;transition:none!important}
 body.calm .hero-art .worm,body.calm #fx{display:none}
 @media (prefers-reduced-motion: reduce){*,*::before,*::after{animation:none!important;transition:none!important}.hero-art .worm{display:none}}
+
+/* ---------------- Looks: the shape and lettering of the whole app (Colors → LOOK) ----------------
+   classic = the original chunky pixel style (no attribute). Each look keeps the pixel apple, the
+   pixel icons and the 128px size rule; it changes corners, borders, shadows and fonts. */
+
+/* CLEAN: flat dark cards, soft corners, thin lines, plain bold text; pixel font only for big titles. */
+html[data-look=clean] body::before,html[data-look=soft] body::before{display:none}
+html[data-look=clean]{--radius:18px;--font:'Inter',system-ui,sans-serif}
+html[data-look=clean] h2,html[data-look=clean] h3,html[data-look=clean] .eyebrow,html[data-look=clean] .sub-h,html[data-look=clean] .pill,html[data-look=clean] .btn,
+html[data-look=clean] .tile b,html[data-look=clean] .stat span,html[data-look=clean] .pip,html[data-look=clean] .chip,html[data-look=clean] .toast,html[data-look=clean] .brand span,
+html[data-look=clean] .booklet-label,html[data-look=clean] .day,html[data-look=clean] .sheet-cell{font-family:var(--font);letter-spacing:0;font-weight:800}
+html[data-look=clean] h1{text-shadow:none}
+html[data-look=clean] h2{font-size:22px} html[data-look=clean] h3{font-size:18px}
+html[data-look=clean] .eyebrow{font-size:13px;letter-spacing:.12em;text-transform:uppercase}
+html[data-look=clean] .panel,html[data-look=clean] .modal{border:1px solid var(--line);border-radius:var(--radius);box-shadow:0 10px 30px rgba(0,0,0,.25)}
+html[data-look=clean] .tile{border:1px solid var(--line);border-radius:var(--radius);box-shadow:none;background:var(--panel2)}
+html[data-look=clean] .tile b{font-size:17px}
+html[data-look=clean] .tile.hot{border:2px solid var(--accent);box-shadow:none}
+html[data-look=clean] .tile:active{transform:scale(.97);box-shadow:none}
+html[data-look=clean] .btn{font-size:17px;border-radius:14px;box-shadow:none}
+html[data-look=clean] .btn:active{transform:scale(.96);box-shadow:none}
+html[data-look=clean] .btn.alt{border:1px solid var(--line);box-shadow:none}
+html[data-look=clean] .btn.alt.on{border:2px solid var(--accent);box-shadow:none}
+html[data-look=clean] .btn.warn{box-shadow:none}
+html[data-look=clean] .choice{border:1px solid var(--line);box-shadow:none;border-radius:14px}
+html[data-look=clean] .top-level,html[data-look=clean] .pill,html[data-look=clean] .pip,html[data-look=clean] .chip,html[data-look=clean] .toast{border-radius:14px;box-shadow:none}
+html[data-look=clean] .pill{font-size:13px}
+html[data-look=clean] .stat,html[data-look=clean] .story,html[data-look=clean] .input,html[data-look=clean] .model-card,html[data-look=clean] .feedback,html[data-look=clean] .result-row,html[data-look=clean] .order-item{border-width:1px;border-radius:14px}
+html[data-look=clean] .stat span{font-size:12px}
+html[data-look=clean] .bar{border:none;border-radius:99px;overflow:hidden;background:var(--panel2);height:14px}
+html[data-look=clean] .day,html[data-look=clean] .sheet-cell{border-width:1px;border-radius:10px}
+html[data-look=clean] .level-big{text-shadow:none}
+
+/* SOFT: light and friendly — white rounded cards with gentle shadows, round lettering. */
+html[data-look=soft]{--radius:26px;--font:'Nunito','Inter',system-ui,sans-serif}
+html[data-look=soft] body{font-family:var(--font)}
+html[data-look=soft] h1,html[data-look=soft] h2,html[data-look=soft] h3,html[data-look=soft] .eyebrow,html[data-look=soft] .sub-h,html[data-look=soft] .pill,html[data-look=soft] .btn,
+html[data-look=soft] .tile b,html[data-look=soft] .stat b,html[data-look=soft] .stat span,html[data-look=soft] .pip,html[data-look=soft] .chip,html[data-look=soft] .toast,
+html[data-look=soft] .brand,html[data-look=soft] .booklet-label,html[data-look=soft] .day,html[data-look=soft] .sheet-cell,html[data-look=soft] .q,html[data-look=soft] .choice,html[data-look=soft] .input{font-family:var(--font);letter-spacing:0;font-weight:900}
+html[data-look=soft] h1{font-size:clamp(26px,5vw,40px);text-shadow:none}
+html[data-look=soft] h2{font-size:24px} html[data-look=soft] h3{font-size:19px}
+html[data-look=soft] .brand b{font-size:30px} html[data-look=soft] .brand span{font-size:14px;letter-spacing:.15em}
+html[data-look=soft] .eyebrow{font-size:14px;letter-spacing:.15em}
+html[data-look=soft] .panel,html[data-look=soft] .modal{border:none;border-radius:var(--radius);box-shadow:0 8px 28px rgba(60,40,20,.12)}
+html[data-look=soft] .tile{border:none;border-radius:var(--radius);background:var(--panel);box-shadow:0 6px 20px rgba(60,40,20,.10)}
+html[data-look=soft] .tile b{font-size:19px}
+html[data-look=soft] .tile.hot{box-shadow:0 0 0 4px var(--accent),0 6px 20px rgba(60,40,20,.12)}
+html[data-look=soft] .tile:active{transform:scale(.97)}
+html[data-look=soft] .btn{font-size:19px;border-radius:99px;box-shadow:0 5px 0 var(--accent-deep)}
+html[data-look=soft] .btn.alt{border:none;background:var(--panel2);box-shadow:0 5px 0 var(--line)}
+html[data-look=soft] .btn.alt.on{box-shadow:0 0 0 3px var(--accent),0 5px 0 var(--accent-deep)}
+html[data-look=soft] .choice{border:none;border-radius:22px;box-shadow:0 5px 0 var(--line)}
+html[data-look=soft] .top-level{border-radius:28px;font-family:var(--font);font-weight:900;font-size:30px}
+html[data-look=soft] .level-big{font-family:var(--font);font-weight:900;text-shadow:none;font-size:clamp(56px,12vw,104px)}
+html[data-look=soft] .pill,html[data-look=soft] .pip,html[data-look=soft] .chip,html[data-look=soft] .toast{border-radius:99px;box-shadow:none}
+html[data-look=soft] .pill{font-size:14px}
+html[data-look=soft] .stat,html[data-look=soft] .input,html[data-look=soft] .model-card,html[data-look=soft] .feedback,html[data-look=soft] .result-row,html[data-look=soft] .order-item{border:none;border-radius:20px;background:var(--panel2)}
+html[data-look=soft] .story{border:none;border-radius:22px;background:var(--panel2)}
+html[data-look=soft] .stat span{font-size:13px}
+html[data-look=soft] .bar{border:none;border-radius:99px;overflow:hidden;background:var(--panel2);height:16px}
+html[data-look=soft] .day,html[data-look=soft] .sheet-cell{border:none;border-radius:50%;background:var(--panel2)}
+html[data-look=soft] .day.met{background:var(--accent2)}
+html[data-look=soft] .sheet-cell.done{background:var(--accent)}
+
+/* PAPER: a clean school worksheet — white paper, faint ruled lines, ink-blue and red, square corners. */
+html[data-look=paper]{--font:'Inter',system-ui,sans-serif}
+html[data-look=paper] body::before{background-image:linear-gradient(to bottom,transparent 31px,color-mix(in srgb,var(--accent) 12%,transparent) 32px);background-size:100% 32px}
+html[data-look=paper] h2,html[data-look=paper] h3,html[data-look=paper] .eyebrow,html[data-look=paper] .sub-h,html[data-look=paper] .pill,html[data-look=paper] .btn,
+html[data-look=paper] .tile b,html[data-look=paper] .stat span,html[data-look=paper] .pip,html[data-look=paper] .chip,html[data-look=paper] .toast,html[data-look=paper] .brand span,
+html[data-look=paper] .booklet-label,html[data-look=paper] .day,html[data-look=paper] .sheet-cell{font-family:var(--font);letter-spacing:0;font-weight:800}
+html[data-look=paper] h1{text-shadow:none}
+html[data-look=paper] h2{font-size:22px} html[data-look=paper] h3{font-size:18px}
+html[data-look=paper] .eyebrow{font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--apple)}
+html[data-look=paper] .panel,html[data-look=paper] .modal{border:2px solid var(--ink);box-shadow:4px 4px 0 color-mix(in srgb,var(--ink) 18%,transparent);border-left:10px solid var(--apple)}
+html[data-look=paper] .tile{border:2px solid var(--ink);box-shadow:4px 4px 0 color-mix(in srgb,var(--ink) 18%,transparent)}
+html[data-look=paper] .tile b{font-size:17px}
+html[data-look=paper] .tile.hot{border-color:var(--accent);box-shadow:4px 4px 0 var(--accent)}
+html[data-look=paper] .btn{font-size:17px;border:2px solid var(--ink);box-shadow:4px 4px 0 var(--ink)}
+html[data-look=paper] .btn:active{transform:translate(3px,3px);box-shadow:1px 1px 0 var(--ink)}
+html[data-look=paper] .btn.alt{border:2px solid var(--ink);box-shadow:4px 4px 0 color-mix(in srgb,var(--ink) 25%,transparent)}
+html[data-look=paper] .btn.alt.on{border-color:var(--accent);box-shadow:4px 4px 0 var(--accent)}
+html[data-look=paper] .choice{border:2px solid var(--ink);box-shadow:4px 4px 0 color-mix(in srgb,var(--ink) 25%,transparent)}
+html[data-look=paper] .top-level{border:2px solid var(--ink);box-shadow:4px 4px 0 var(--ink)}
+html[data-look=paper] .level-big{text-shadow:none;color:var(--accent)}
+html[data-look=paper] .pill{font-size:13px;border:2px solid var(--ink)}
+html[data-look=paper] .stat,html[data-look=paper] .story,html[data-look=paper] .input,html[data-look=paper] .model-card,html[data-look=paper] .feedback,html[data-look=paper] .result-row,html[data-look=paper] .order-item{border:2px solid var(--ink)}
+html[data-look=paper] .story{background:repeating-linear-gradient(to bottom,var(--panel) 0,var(--panel) calc(var(--read-size) * 1.9 - 2px),color-mix(in srgb,var(--accent) 22%,transparent) calc(var(--read-size) * 1.9 - 2px),color-mix(in srgb,var(--accent) 22%,transparent) calc(var(--read-size) * 1.9));background-position:0 24px}
+html[data-look=paper] .stat span{font-size:12px}
+html[data-look=paper] .bar{border:2px solid var(--ink);height:16px}
+html[data-look=paper] .day,html[data-look=paper] .sheet-cell{border:2px solid var(--ink)}
+
+/* The look picker: a small drawing of each look in its own colors. */
+.looks{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;margin-bottom:8px}
+.look-card{min-height:var(--min);background:var(--panel2);color:var(--ink);border:3px solid var(--line);cursor:pointer;display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding:14px;text-align:left;font:inherit}
+.look-card.on{border-color:var(--accent);outline:3px solid var(--accent);outline-offset:2px}
+.look-card b{font-size:18px;font-weight:800;font-family:'Inter',sans-serif}
+.look-card span{color:var(--muted);font-size:14px}
+.look-mini{display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%;height:128px;padding:12px;background:var(--lb)}
+.look-mini i{display:block;background:var(--lp);border:2px solid color-mix(in srgb,var(--li) 25%,transparent)}
+.look-mini i:first-child{grid-column:1 / 3;background:var(--la)}
+.look-mini i:nth-child(3){background:var(--la2)}
+.look-classic i{border:3px solid #000;box-shadow:4px 4px 0 #000}
+.look-clean i{border-radius:10px;border-width:1px}
+.look-soft i{border:none;border-radius:16px;box-shadow:0 3px 8px rgba(0,0,0,.12)}
+.look-paper{background-image:linear-gradient(to bottom,transparent 15px,rgba(29,78,216,.15) 16px);background-size:100% 16px}
+.look-paper i{border:2px solid var(--li);box-shadow:3px 3px 0 var(--li)}
+
+/* Every other bit of pixel lettering (timers, hints, labels…) follows the look's font. Clean and
+   Worksheet keep pixel letters for the big titles, the level and the logo, so it still feels 128bit. */
+html[data-look=clean],html[data-look=paper],html[data-look=soft]{--pixel:var(--font)}
+html[data-look=clean] h1,html[data-look=clean] .brand b,html[data-look=clean] .level-big,html[data-look=clean] .top-level,
+html[data-look=paper] h1,html[data-look=paper] .brand b,html[data-look=paper] .level-big,html[data-look=paper] .top-level{font-family:'Press Start 2P',ui-monospace,monospace}
+html[data-look=clean] .stats-line,html[data-look=paper] .stats-line,html[data-look=soft] .stats-line{font-size:16px;font-weight:700}
+html[data-look=soft] h1{font-weight:900}

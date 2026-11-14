@@ -7,6 +7,18 @@ const THEMES = {
   grape:      { name: 'Grape',      bg: '#120a1f', panel: '#1f1433', accent: '#c084fc', accent2: '#fbbf24', ink: '#f8f0ff', apple: '#ff3b5c' },
   sunny:      { name: 'Sunny',      bg: '#fff8e7', panel: '#ffffff', accent: '#16a34a', accent2: '#d97706', ink: '#1c1917', apple: '#e11d1d' },
   contrast:   { name: 'High Contrast', bg: '#000000', panel: '#000000', accent: '#ffff00', accent2: '#00ffff', ink: '#ffffff', apple: '#ff0000' },
+  midnight:   { name: 'Midnight',   bg: '#0f172a', panel: '#131d35', accent: '#34d399', accent2: '#fbbf24', ink: '#f1f5f9', apple: '#f43f5e' },
+  cream:      { name: 'Cream',      bg: '#fdf6ec', panel: '#ffffff', accent: '#16a34a', accent2: '#f59e0b', ink: '#2b2118', apple: '#ef4444' },
+  notebook:   { name: 'Notebook',   bg: '#fbfaf7', panel: '#ffffff', accent: '#1d4ed8', accent2: '#f59e0b', ink: '#1f2937', apple: '#dc2626' },
+};
+
+// Looks: the shape and lettering of the app (app.css, html[data-look]). Each comes with colors that
+// suit it; the colors can still be changed after.
+const LOOKS = {
+  classic: { name: 'Classic Pixel', note: 'Chunky pixel letters, hard shadows', theme: 'chalkboard' },
+  clean:   { name: 'Clean',         note: 'Flat dark cards, soft corners, plain bold text', theme: 'midnight' },
+  soft:    { name: 'Soft',          note: 'Light, round and friendly', theme: 'cream' },
+  paper:   { name: 'Worksheet',     note: 'Like a school booklet: white paper, ruled lines', theme: 'notebook' },
 };
 
 const DAY = 864e5;
@@ -20,7 +32,7 @@ const Store = {
       child: { name: '' },
       placed: false, level: 0, booklet: null,
       settings: {
-        passMark: 85, sheetsPerBooklet: 6, dailyGoal: 2, voice: '', voiceSpeed: 1, listener: 'phone', storyIdeas: [], ownIdeas: true, storyStyle: '', useName: false, storyLength: 'normal', practiceWords: [], allowSkipRead: false, readSize: 30, motion: true,
+        passMark: 85, sheetsPerBooklet: 6, dailyGoal: 2, voice: '', voiceSpeed: 1, listener: 'phone', storyIdeas: [], ownIdeas: true, storyStyle: '', useName: false, storyLength: 'normal', practiceWords: [], allowSkipRead: false, readSize: 30, motion: true, look: 'classic',
         theme: { ...THEMES.chalkboard }, themeName: 'chalkboard',
         model: { endpoint: 'http://localhost:11434', api: Device.available() ? 'device' : 'ollama', name: 'qwen3:8b', vision: '', device: '' },
       },
