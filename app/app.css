@@ -348,32 +348,32 @@ body.calm .hero-art .worm,body.calm #fx{display:none}
    pixel icons and the 128px size rule; it changes corners, borders, shadows and fonts. */
 
 /* CLEAN: flat dark cards, soft corners, thin lines, plain bold text; pixel font only for big titles. */
-html[data-look=clean] body::before,html[data-look=soft] body::before{display:none}
-html[data-look=clean]{--radius:18px;--font:'Inter',system-ui,sans-serif}
-html[data-look=clean] h2,html[data-look=clean] h3,html[data-look=clean] .eyebrow,html[data-look=clean] .sub-h,html[data-look=clean] .pill,html[data-look=clean] .btn,
-html[data-look=clean] .tile b,html[data-look=clean] .stat span,html[data-look=clean] .pip,html[data-look=clean] .chip,html[data-look=clean] .toast,html[data-look=clean] .brand span,
-html[data-look=clean] .booklet-label,html[data-look=clean] .day,html[data-look=clean] .sheet-cell{font-family:var(--font);letter-spacing:0;font-weight:800}
-html[data-look=clean] h1{text-shadow:none}
-html[data-look=clean] h2{font-size:22px} html[data-look=clean] h3{font-size:18px}
-html[data-look=clean] .eyebrow{font-size:13px;letter-spacing:.12em;text-transform:uppercase}
-html[data-look=clean] .panel,html[data-look=clean] .modal{border:1px solid var(--line);border-radius:var(--radius);box-shadow:0 10px 30px rgba(0,0,0,.25)}
-html[data-look=clean] .tile{border:1px solid var(--line);border-radius:var(--radius);box-shadow:none;background:var(--panel2)}
-html[data-look=clean] .tile b{font-size:17px}
-html[data-look=clean] .tile.hot{border:2px solid var(--accent);box-shadow:none}
-html[data-look=clean] .tile:active{transform:scale(.97);box-shadow:none}
-html[data-look=clean] .btn{font-size:17px;border-radius:14px;box-shadow:none}
-html[data-look=clean] .btn:active{transform:scale(.96);box-shadow:none}
-html[data-look=clean] .btn.alt{border:1px solid var(--line);box-shadow:none}
-html[data-look=clean] .btn.alt.on{border:2px solid var(--accent);box-shadow:none}
-html[data-look=clean] .btn.warn{box-shadow:none}
-html[data-look=clean] .choice{border:1px solid var(--line);box-shadow:none;border-radius:14px}
-html[data-look=clean] .top-level,html[data-look=clean] .pill,html[data-look=clean] .pip,html[data-look=clean] .chip,html[data-look=clean] .toast{border-radius:14px;box-shadow:none}
-html[data-look=clean] .pill{font-size:13px}
-html[data-look=clean] .stat,html[data-look=clean] .story,html[data-look=clean] .input,html[data-look=clean] .model-card,html[data-look=clean] .feedback,html[data-look=clean] .result-row,html[data-look=clean] .order-item{border-width:1px;border-radius:14px}
-html[data-look=clean] .stat span{font-size:12px}
-html[data-look=clean] .bar{border:none;border-radius:99px;overflow:hidden;background:var(--panel2);height:14px}
-html[data-look=clean] .day,html[data-look=clean] .sheet-cell{border-width:1px;border-radius:10px}
-html[data-look=clean] .level-big{text-shadow:none}
+html[data-look~=clean] body::before,html[data-look=soft] body::before{display:none}
+html[data-look~=clean]{--radius:18px;--font:'Inter',system-ui,sans-serif}
+html[data-look~=clean] h2,html[data-look~=clean] h3,html[data-look~=clean] .eyebrow,html[data-look~=clean] .sub-h,html[data-look~=clean] .pill,html[data-look~=clean] .btn,
+html[data-look~=clean] .tile b,html[data-look~=clean] .stat span,html[data-look~=clean] .pip,html[data-look~=clean] .chip,html[data-look~=clean] .toast,html[data-look~=clean] .brand span,
+html[data-look~=clean] .booklet-label,html[data-look~=clean] .day,html[data-look~=clean] .sheet-cell{font-family:var(--font);letter-spacing:0;font-weight:800}
+html[data-look~=clean] h1{text-shadow:none}
+html[data-look~=clean] h2{font-size:22px} html[data-look~=clean] h3{font-size:18px}
+html[data-look~=clean] .eyebrow{font-size:13px;letter-spacing:.12em;text-transform:uppercase}
+html[data-look~=clean] .panel,html[data-look~=clean] .modal{border:1px solid var(--line);border-radius:var(--radius);box-shadow:0 10px 30px rgba(0,0,0,.25)}
+html[data-look~=clean] .tile{border:1px solid var(--line);border-radius:var(--radius);box-shadow:none;background:var(--panel2)}
+html[data-look~=clean] .tile b{font-size:17px}
+html[data-look~=clean] .tile.hot{border:2px solid var(--accent);box-shadow:none}
+html[data-look~=clean] .tile:active{transform:scale(.97);box-shadow:none}
+html[data-look~=clean] .btn{font-size:17px;border-radius:14px;box-shadow:none}
+html[data-look~=clean] .btn:active{transform:scale(.96);box-shadow:none}
+html[data-look~=clean] .btn.alt{border:1px solid var(--line);box-shadow:none}
+html[data-look~=clean] .btn.alt.on{border:2px solid var(--accent);box-shadow:none}
+html[data-look~=clean] .btn.warn{box-shadow:none}
+html[data-look~=clean] .choice{border:1px solid var(--line);box-shadow:none;border-radius:14px}
+html[data-look~=clean] .top-level,html[data-look~=clean] .pill,html[data-look~=clean] .pip,html[data-look~=clean] .chip,html[data-look~=clean] .toast{border-radius:14px;box-shadow:none}
+html[data-look~=clean] .pill{font-size:13px}
+html[data-look~=clean] .stat,html[data-look~=clean] .story,html[data-look~=clean] .input,html[data-look~=clean] .model-card,html[data-look~=clean] .feedback,html[data-look~=clean] .result-row,html[data-look~=clean] .order-item{border-width:1px;border-radius:14px}
+html[data-look~=clean] .stat span{font-size:12px}
+html[data-look~=clean] .bar{border:none;border-radius:99px;overflow:hidden;background:var(--panel2);height:14px}
+html[data-look~=clean] .day,html[data-look~=clean] .sheet-cell{border-width:1px;border-radius:10px}
+html[data-look~=clean] .level-big{text-shadow:none}
 
 /* SOFT: light and friendly — white rounded cards with gentle shadows, round lettering. */
 html[data-look=soft]{--radius:26px;--font:'Nunito','Inter',system-ui,sans-serif}
@@ -451,8 +451,31 @@ html[data-look=paper] .day,html[data-look=paper] .sheet-cell{border:2px solid va
 
 /* Every other bit of pixel lettering (timers, hints, labels…) follows the look's font. Clean and
    Worksheet keep pixel letters for the big titles, the level and the logo, so it still feels 128bit. */
-html[data-look=clean],html[data-look=paper],html[data-look=soft]{--pixel:var(--font)}
-html[data-look=clean] h1,html[data-look=clean] .brand b,html[data-look=clean] .level-big,html[data-look=clean] .top-level,
+html[data-look~=clean],html[data-look=paper],html[data-look=soft]{--pixel:var(--font)}
+html[data-look~=clean] h1,html[data-look~=clean] .brand b,html[data-look~=clean] .level-big,html[data-look~=clean] .top-level,
 html[data-look=paper] h1,html[data-look=paper] .brand b,html[data-look=paper] .level-big,html[data-look=paper] .top-level{font-family:'Press Start 2P',ui-monospace,monospace}
-html[data-look=clean] .stats-line,html[data-look=paper] .stats-line,html[data-look=soft] .stats-line{font-size:16px;font-weight:700}
+html[data-look~=clean] .stats-line,html[data-look=paper] .stats-line,html[data-look=soft] .stats-line{font-size:16px;font-weight:700}
 html[data-look=soft] h1{font-weight:900}
+
+/* PIXEL 128: the Clean look with a fine, very readable pixel font (Jersey 10) instead of the chunky one. */
+html[data-look~=pixel]{--font:'Jersey 10','Inter',system-ui,sans-serif;--radius:14px}
+html[data-look~=pixel] *{font-synthesis:none}
+html[data-look~=pixel] h1,html[data-look~=pixel] h2,html[data-look~=pixel] h3,html[data-look~=pixel] .brand b,html[data-look~=pixel] .level-big,html[data-look~=pixel] .top-level,
+html[data-look~=pixel] .btn,html[data-look~=pixel] .tile b,html[data-look~=pixel] .pill,html[data-look~=pixel] .stat b,html[data-look~=pixel] .stat span,html[data-look~=pixel] .eyebrow,
+html[data-look~=pixel] .sub-h,html[data-look~=pixel] .story-title,html[data-look~=pixel] .pip,html[data-look~=pixel] .chip,html[data-look~=pixel] .toast,html[data-look~=pixel] .brand span,
+html[data-look~=pixel] .booklet-label,html[data-look~=pixel] .day,html[data-look~=pixel] .sheet-cell,html[data-look~=pixel] .stats-line,html[data-look~=pixel] .goal-cheer,html[data-look~=pixel] .stamp{font-family:var(--font);font-weight:400;letter-spacing:.02em}
+html[data-look~=pixel] h1{font-size:clamp(34px,6.5vw,48px);line-height:1.1}
+html[data-look~=pixel] h2{font-size:32px;line-height:1.1} html[data-look~=pixel] h3{font-size:26px}
+html[data-look~=pixel] .brand b{font-size:40px;line-height:1} html[data-look~=pixel] .brand span{font-size:20px;letter-spacing:.2em}
+html[data-look~=pixel] .level-big{font-size:clamp(84px,17vw,140px);line-height:.95}
+html[data-look~=pixel] .top-level{font-size:48px}
+html[data-look~=pixel] .btn{font-size:26px} html[data-look~=pixel] .tile b{font-size:28px}
+html[data-look~=pixel] .pill,html[data-look~=pixel] .eyebrow,html[data-look~=pixel] .pip{font-size:20px}
+html[data-look~=pixel] .stat b{font-size:40px} html[data-look~=pixel] .stat span{font-size:18px}
+html[data-look~=pixel] .story-title{font-size:36px} html[data-look~=pixel] .stats-line{font-size:22px}
+html[data-look~=pixel] .toast{font-size:22px} html[data-look~=pixel] .goal-cheer{font-size:26px} html[data-look~=pixel] .stamp{font-size:clamp(40px,8vw,56px)}
+html[data-look~=pixel] .day,html[data-look~=pixel] .sheet-cell,html[data-look~=pixel] .booklet-label{font-size:20px}
+html[data-look~=pixel] .tile{gap:14px}
+html[data-look~=pixel] .tile.hot{background:color-mix(in srgb,var(--accent) 12%,var(--panel2))}
+.look-pixel{display:grid;place-items:center;background:var(--lb)}
+.look-pixel .px-icon{width:112px;height:112px;min-width:0;min-height:0}

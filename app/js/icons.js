@@ -1,9 +1,15 @@
-// Pixel art, 16×16 grids drawn as SVG at 128px or larger. One char per pixel; '.' is empty.
-// Colors come from the theme, so icons follow the color settings.
+// Pixel art drawn as SVG at 128px or larger. One char per pixel; '.' is empty. The detailed 64×64
+// art (icons-hd.js, made by tools/pixelart.py) is used everywhere except the Classic Pixel look, which
+// keeps the original chunky 16×16 drawings below. Colors come from the theme, so icons follow the
+// color settings.
 const ICON_COLORS = {
   k: 'var(--outline)', r: 'var(--apple)', d: 'var(--apple-deep)', h: '#ffffff', w: '#f4f1ff',
   g: '#22c55e', G: '#15803d', b: '#7c4a1e', m: 'var(--muted)', i: 'var(--ink)',
   a: 'var(--accent)', A: 'var(--accent-deep)', y: 'var(--accent2)', Y: 'var(--accent2-deep)',
+  // lighter rims and the fixed colors of the detailed art
+  R: 'color-mix(in srgb, var(--apple) 55%, #fff)', L: 'color-mix(in srgb, var(--accent) 50%, #fff)', N: 'color-mix(in srgb, var(--accent2) 45%, #fff)',
+  q: '#86efac', B: '#4a2c12', n: '#b77a3f', e: '#d6dbe3', E: '#8b95a5', F: '#4b5563', o: '#fb923c', O: '#c2410c',
+  s: '#f2c29b', S: '#d39a6a', p: '#f9a8d4', P: '#db2777', c: '#38bdf8', C: '#0369a1',
 };
 
 const ICONS = {
@@ -142,9 +148,30 @@ const ICONS = {
 };
 
 // size is never below 128: every picture in the app is 128px or larger.
+const hdCache = {};
+// The detailed drawing as one SVG path per color (a few elements instead of thousands of squares).
+function hdIcon(name) {
+  if (hdCache[name]) return hdCache[name];
+  const paths = {};
+  ICONS_HD[name].forEach((row, y) => {
+    let x = 0;
+    for (const [, c, n] of row.matchAll(/([^\d])(\d*)/g)) {
+      const run = n ? +n : 1;
+      if (c !== '.') paths[c] = (paths[c] || '') + `M${x} ${y}h${run}v1h-${run}z`;
+      x += run;
+    }
+  });
+  return (hdCache[name] = Object.entries(paths).map(([c, d]) => `<path d="${d}" style="fill:${ICON_COLORS[c]}"/>`).join(''));
+}
+
 function icon(name, size = 128, label = '') {
   const grid = ICONS[name];
   size = Math.max(128, size);
+  const look = typeof Store !== 'undefined' && Store.state && Store.state.settings.look;
+  if (typeof ICONS_HD !== 'undefined' && ICONS_HD[name] && look !== 'classic') {
+    const a11y = label ? `role="img" aria-label="${label}"` : 'aria-hidden="true"';
+    return `<svg class="px-icon hd" ${a11y} width="${size}" height="${size}" viewBox="0 0 64 64" shape-rendering="crispEdges">${hdIcon(name)}</svg>`;
+  }
   let rects = '';
   grid.forEach((row, y) => {
     let x = 0;

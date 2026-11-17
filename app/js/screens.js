@@ -730,8 +730,8 @@ function screenColors() {
       <h1>${icon('palette')} Look & colors</h1>
       <h2 class="sub-h">Pick a look</h2>
       <div class="looks">${Object.entries(LOOKS).map(([k, l]) => { const t = THEMES[l.theme]; return `
-        <button class="look-card ${(st.look || 'classic') === k ? 'on' : ''}" data-look="${k}" style="--lb:${t.bg};--lp:${t.panel};--la:${t.accent};--la2:${t.accent2};--li:${t.ink}">
-          <span class="look-mini look-${k}"><i></i><i></i><i></i></span>
+        <button class="look-card ${(st.look || 'pixel') === k ? 'on' : ''}" data-setlook="${k}" style="--lb:${t.bg};--lp:${t.panel};--la:${t.accent};--la2:${t.accent2};--li:${t.ink}">
+          ${k === 'pixel' ? `<span class="look-mini look-pixel">${icon('apple', 128)}</span>` : `<span class="look-mini look-${k}"><i></i><i></i><i></i></span>`}
           <b>${esc(l.name)}</b><span>${esc(l.note)}</span></button>`; }).join('')}</div>
       <h2 class="sub-h">Pick colors</h2>
       <div class="swatches">${Object.entries(THEMES).map(([k, t]) => `
@@ -754,9 +754,9 @@ function screenColors() {
       </div>
     </section>`;
   const save = () => { applyTheme(); Store.save(); };
-  $$('[data-look]').forEach(b => b.onclick = () => { const l = LOOKS[b.dataset.look]; st.look = b.dataset.look; st.theme = { ...THEMES[l.theme] }; st.themeName = l.theme; save(); screenColors(); });
+  $$('[data-setlook]').forEach(b => b.onclick = () => { const l = LOOKS[b.dataset.setlook]; st.look = b.dataset.setlook; st.theme = { ...THEMES[l.theme] }; st.themeName = l.theme; save(); screenColors(); });
   $$('[data-theme]').forEach(b => b.onclick = () => { st.theme = { ...THEMES[b.dataset.theme] }; st.themeName = b.dataset.theme; save(); screenColors(); });
   $$('[data-color]').forEach(inp => inp.oninput = () => { st.theme[inp.dataset.color] = inp.value; st.themeName = 'custom'; save(); $$('.swatch').forEach(x => x.classList.remove('on')); });
   $$('[data-size]').forEach(b => b.onclick = () => { st.readSize = Math.max(20, Math.min(56, st.readSize + +b.dataset.size)); save(); screenColors(); });
-  $('[data-reset]').onclick = () => { st.look = 'classic'; st.theme = { ...THEMES.chalkboard }; st.themeName = 'chalkboard'; st.readSize = 30; save(); screenColors(); };
+  $('[data-reset]').onclick = () => { st.look = 'pixel'; st.theme = { ...THEMES.midnight }; st.themeName = 'midnight'; st.readSize = 30; save(); screenColors(); };
 }

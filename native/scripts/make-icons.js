@@ -5,7 +5,8 @@ const fs = require('fs');
 const path = require('path');
 
 const res = path.join(__dirname, '..', 'android', 'app', 'src', 'main', 'res');
-const iconsJs = fs.readFileSync(path.join(__dirname, '..', '..', 'app', 'js', 'icons.js'), 'utf8');
+// The detailed 64×64 apple (icons-hd.js) drawn by the app's own icon().
+const iconsJs = ['icons-hd.js', 'icons.js'].map(f => fs.readFileSync(path.join(__dirname, '..', '..', 'app', 'js', f), 'utf8')).join('\n');
 const pngSize = f => { const b = fs.readFileSync(f); return [b.readUInt32BE(16), b.readUInt32BE(20)]; };
 
 (async () => {
@@ -16,9 +17,9 @@ const pngSize = f => { const b = fs.readFileSync(f); return [b.readUInt32BE(16),
       if (!fs.existsSync(f)) continue;
       const [w, h] = pngSize(f);
       const share = file === 'splash.png' ? 0.3 : file === 'ic_launcher_foreground.png' ? 0.5 : 0.72;
-      // Whole multiples of 16 keep every pixel square and crisp.
-      const apple = Math.max(16, Math.floor(Math.min(w, h) * share / 16) * 16);
-      const bg = file === 'ic_launcher_foreground.png' ? 'transparent' : '#0b0b16';
+      // Whole multiples of 32 keep the pixels even (64×64 art at half, full or double size).
+      const apple = Math.max(32, Math.floor(Math.min(w, h) * share / 32) * 32);
+      const bg = file === 'ic_launcher_foreground.png' ? 'transparent' : '#0f172a';
       const radius = file === 'ic_launcher_round.png' ? '50%' : '0';
       const page = await browser.newPage({ viewport: { width: w, height: h } });
       await page.setContent(`<html><body style="margin:0;background:transparent">

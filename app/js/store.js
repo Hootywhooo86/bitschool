@@ -15,6 +15,7 @@ const THEMES = {
 // Looks: the shape and lettering of the app (app.css, html[data-look]). Each comes with colors that
 // suit it; the colors can still be changed after.
 const LOOKS = {
+  pixel:   { name: 'Pixel 128',     note: 'Detailed pixel art, fine pixel letters, clean cards', theme: 'midnight' },
   classic: { name: 'Classic Pixel', note: 'Chunky pixel letters, hard shadows', theme: 'chalkboard' },
   clean:   { name: 'Clean',         note: 'Flat dark cards, soft corners, plain bold text', theme: 'midnight' },
   soft:    { name: 'Soft',          note: 'Light, round and friendly', theme: 'cream' },
@@ -32,8 +33,8 @@ const Store = {
       child: { name: '' },
       placed: false, level: 0, booklet: null,
       settings: {
-        passMark: 85, sheetsPerBooklet: 6, dailyGoal: 2, voice: '', voiceSpeed: 1, listener: 'phone', storyIdeas: [], ownIdeas: true, storyStyle: '', useName: false, storyLength: 'normal', practiceWords: [], allowSkipRead: false, readSize: 30, motion: true, look: 'classic',
-        theme: { ...THEMES.chalkboard }, themeName: 'chalkboard',
+        passMark: 85, sheetsPerBooklet: 6, dailyGoal: 2, voice: '', voiceSpeed: 1, listener: 'phone', storyIdeas: [], ownIdeas: true, storyStyle: '', useName: false, storyLength: 'normal', practiceWords: [], allowSkipRead: false, readSize: 30, motion: true, look: 'pixel', lookV: 2,
+        theme: { ...THEMES.midnight }, themeName: 'midnight',
         model: { endpoint: 'http://localhost:11434', api: Device.available() ? 'device' : 'ollama', name: 'qwen3:8b', vision: '', device: '' },
       },
       sessions: [], storyPicks: [], days: {}, words: {}, cache: {}, usedBuiltins: [], pending: [], history: [], outbox: [], placements: [],
@@ -45,6 +46,10 @@ const Store = {
     const d = this.defaults();
     this.state = s ? { ...d, ...s, settings: { ...d.settings, ...s.settings, model: { ...d.settings.model, ...(s.settings || {}).model } } } : d;
     // A phone can't reach Ollama at its own "localhost", so older Android installs move to the on-device writer.
+    // Pixel 128 became the look of the app: earlier installs move to it once (Look & colors still offers
+    // Classic Pixel and the others).
+    const st = this.state.settings;
+    if (((s && s.settings && s.settings.lookV) || 0) < 2) { st.lookV = 2; st.look = 'pixel'; if (st.themeName !== 'custom') { st.theme = { ...THEMES.midnight }; st.themeName = 'midnight'; } }
     const m = this.state.settings.model;
     if (NATIVE && Device.available() && m.api === 'ollama' && /localhost|127\.0\.0\.1/.test(m.endpoint)) m.api = 'device';
     return this.state;
